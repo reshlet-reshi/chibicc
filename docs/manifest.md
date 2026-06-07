@@ -1,10 +1,11 @@
-# Non-C/H File Manifest
+# Repository File Manifest
 
 | File | Status | Notes |
 | --- | --- | --- |
 | `.gitignore` | OK | Ignores build/test outputs, local temporaries, and third-party checkout state. |
 | `docs/branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
-| `docs/manifest.md` | Reviewed | This manifest for tracked non-`.c`/`.h` files. |
+| `docs/manifest.ignore.md` | Reviewed | Defines the omission contract for files intentionally left out of this manifest. |
+| `docs/manifest.md` | Reviewed | Positive manifest of tracked files requiring explicit audit/status. |
 | `LICENSE` | OK | MIT license text. |
 | `Makefile` | Needs cleanup | Core build/test entrypoint; `test-all` should be added to `.PHONY`. |
 | `README.md` | OK | Upstream project overview and design notes. |
