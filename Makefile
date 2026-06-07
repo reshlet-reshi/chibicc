@@ -107,57 +107,9 @@ TEST_EXEDIR=test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 TEST_LINK_CC?=$(CC)
 
-# Default
-
 default: compiler
 
-# Source distribution
-
-$(SRC_DIST): $(DIST_FILES)
-	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
-	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
-	tar --null -T $(SRC_DIST_LIST) \
-		--transform='s,^,$(SRC_DIST_ROOT)/,' \
-		-czf $@
-
-src-dist: $(SRC_DIST)
-
-# Stage 1
-
-$(STAGE1_CHIBICC): $(STAGE1)/.src-ready
-	$(MAKE) -C $(STAGE1) compiler
-
-test: $(STAGE1)/.src-ready
-	$(MAKE) -C $(STAGE1) test-compiler
-
-test-all: test test-stage2
-
-# Stage 2
-
-$(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
-	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
-		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
-			CFLAGS= compiler
-
-test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
-	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
-		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
-			"TEST_LINK_CC=$(CC)" CFLAGS= test-compiler
-
-# Stage extraction
-
-$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
-	@case '$(@D)' in .make/*) ;; \
-		*) echo 'refusing to prepare stage outside .make' >&2; exit 1;; \
-	esac
-	rm -rf $(@D) $(@D).unpack
-	mkdir -p $(@D).unpack
-	tar -xzf $(SRC_DIST) -C $(@D).unpack
-	mv $(@D).unpack/$(SRC_DIST_ROOT) $(@D)
-	rm -rf $(@D).unpack
-	touch $@
-
-# Local stage build
+all: test-all
 
 compiler:
 	mkdir -p $(OBJDIR)
@@ -181,12 +133,48 @@ test-compiler: compiler
 	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
 	test/driver.sh ./$(LOCAL_CHIBICC)
 
-# Misc.
+$(SRC_DIST): $(DIST_FILES)
+	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
+	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
+	tar --null -T $(SRC_DIST_LIST) \
+		--transform='s,^,$(SRC_DIST_ROOT)/,' \
+		-czf $@
+
+src-dist: $(SRC_DIST)
+
+$(STAGE1_CHIBICC): $(STAGE1)/.src-ready
+	$(MAKE) -C $(STAGE1) compiler
+
+test: $(STAGE1)/.src-ready
+	$(MAKE) -C $(STAGE1) test-compiler
+
+test-all: test test-stage2
+
+$(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
+	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
+		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
+			CFLAGS= compiler
+
+test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
+	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
+		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
+			"TEST_LINK_CC=$(CC)" CFLAGS= test-compiler
+
+$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
+	@case '$(@D)' in .make/*) ;; \
+		*) echo 'refusing to prepare stage outside .make' >&2; exit 1;; \
+	esac
+	rm -rf $(@D) $(@D).unpack
+	mkdir -p $(@D).unpack
+	tar -xzf $(SRC_DIST) -C $(@D).unpack
+	mv $(@D).unpack/$(SRC_DIST_ROOT) $(@D)
+	rm -rf $(@D).unpack
+	touch $@
 
 clean:
 	rm -rf chibicc .make .o tmp* test/.exe test/.o test/*.s test/*.exe
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: clean compiler default src-dist test test-compiler
+.PHONY: all clean compiler default src-dist test test-compiler
 .PHONY: test-all test-stage2

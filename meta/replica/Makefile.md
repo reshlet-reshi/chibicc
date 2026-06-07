@@ -135,15 +135,95 @@ The substitutions preserve each stem. For example, `parse.c` maps to
 `TEST_LINK_CC` defaults to `$(CC)` but can be overridden by the outer
 orchestrator when compiler-building and test-linking need different drivers.
 
-## Default and source distribution
+## Entry points and local stage targets
 
 ```make
-# Default
-
 default: compiler
 
-# Source distribution
+all: test-all
 
+compiler:
+	mkdir -p $(OBJDIR)
+	for src in $(COMPILER_SRCS); do \
+		obj=$(OBJDIR)/$${src%.c}.o; \
+		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
+	done
+	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
+
+test-compiler: compiler
+	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
+	for src in $(TEST_SRCS); do \
+		stem=$${src#test/}; \
+		stem=$${stem%.c}; \
+		obj=$(TEST_OBJDIR)/$$stem.o; \
+		exe=$(TEST_EXEDIR)/$$stem.exe; \
+		./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $$obj $$src || exit 1; \
+		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
+			|| exit 1; \
+	done
+	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
+	test/driver.sh ./$(LOCAL_CHIBICC)
+```
+
+The first target is `default`, so plain `make` builds the local compiler
+through that named target. `default` depends on `compiler`, the phony
+local-stage command target that writes root `./chibicc` and `.o/*.o` outputs.
+This keeps the default build lightweight while leaving `test-all` as the
+full "does everything work right now?" gate.
+
+The conventional `all` target is an alias for `test-all`, so `make all` runs
+the full stage 1 and stage 2 test gate without changing the default target's
+lighter behavior.
+
+`compiler` is the local command target. It builds `chibicc` in whatever tree
+Make is currently running in.
+
+The target first creates `$(OBJDIR)`, then loops over `$(COMPILER_SRCS)`.
+`$$src` is a shell variable; the doubled dollar signs pass a literal `$`
+through Make to the shell. `$${src%.c}` strips the `.c` suffix, so `parse.c`
+maps to `.o/parse.o`.
+
+Each loop iteration compiles one root compiler source with `$(CC)
+$(CFLAGS)`. The `|| exit 1` guard stops the loop at the first failed compile
+instead of continuing to link with a missing or stale object.
+
+The final command links `$(LOCAL_CHIBICC)` from the explicit `$(OBJS)` list.
+`$(LDFLAGS)` remains available for callers that need additional link flags.
+The recipe intentionally avoids GNU Make pattern rules and automatic
+variables such as `$@`, `$<`, and `$^`, keeping the local stage build usable
+with pdpmake.
+
+The compiler build uses `$(CC) $(CFLAGS)`. In stage 1, that is the host
+compiler with the repository warning policy. In stage 2, the outer Makefile
+sets `CC` to the stage 1 compiler and clears `CFLAGS`, so chibicc receives
+only the stage-local include path.
+
+`test-compiler` depends on `compiler`, so the local `./chibicc` is rebuilt
+before test objects are compiled. The recipe creates the test object and
+executable directories, then loops over `$(TEST_SRCS)`.
+
+For each source, `$${src#test/}` removes the leading `test/`, and
+`$${stem%.c}` removes the `.c` suffix. `test/arith.c` therefore becomes the
+stem `arith`, the object path `test/.o/arith.o`, and the executable path
+`test/.exe/arith.exe`.
+
+The compile step always uses the local stage compiler with the stage-local
+`include/` and `test/` directories. The link step combines the test object
+with `test/shared/common.c` and writes the executable to `$(TEST_EXEDIR)`.
+Each command exits the loop immediately on failure.
+
+After the loop, the target runs each `test/.exe/*.exe` program, printing the
+executable path before running it, and then runs `test/driver.sh` against the
+local `./chibicc`.
+
+The link step uses `$(TEST_LINK_CC)` without `$(CFLAGS)`, so stage 1 test
+helper warnings do not become `-Werror` failures. Stage 2 overrides
+`TEST_LINK_CC` to the host compiler because chibicc does not accept every
+linker option used here, such as `-pthread`.
+
+## Source distribution
+
+```make
 $(SRC_DIST): $(DIST_FILES)
 	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
 	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
@@ -153,12 +233,6 @@ $(SRC_DIST): $(DIST_FILES)
 
 src-dist: $(SRC_DIST)
 ```
-
-The first target is `default`, so plain `make` builds the local compiler
-through that named target. `default` depends on `compiler`, the phony
-local-stage command target that writes root `./chibicc` and `.o/*.o` outputs.
-This keeps the default build lightweight while leaving `test-all` as the
-full "does everything work right now?" gate.
 
 The next real file target is `$(SRC_DIST)`, the source archive file target.
 By default it creates `.make/chibicc.tar.gz`; callers can override `SRC_DIST`
@@ -179,8 +253,6 @@ that wrapper by moving `chibicc/` to the requested stage path.
 ## Stage 1 orchestration
 
 ```make
-# Stage 1
-
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
 	$(MAKE) -C $(STAGE1) compiler
 
@@ -205,8 +277,6 @@ over the stage 1 and stage 2 test commands.
 ## Stage 2 orchestration
 
 ```make
-# Stage 2
-
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
@@ -238,8 +308,6 @@ link continues to use the host compiler, which accepts link options such as
 ## Stage extraction
 
 ```make
-# Stage extraction
-
 $(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
 	@case '$(@D)' in .make/*) ;; \
 		*) echo 'refusing to prepare stage outside .make' >&2; exit 1;; \
@@ -264,95 +332,15 @@ temporary directory, and touches the stamp.
 Because extraction replaces the whole stage directory, rebuilding a stale
 source distribution gives the next stage build a clean source tree.
 
-## Local compiler build
-
-```make
-# Local stage build
-
-compiler:
-	mkdir -p $(OBJDIR)
-	for src in $(COMPILER_SRCS); do \
-		obj=$(OBJDIR)/$${src%.c}.o; \
-		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
-	done
-	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
-```
-
-`compiler` is the local command target. It builds `chibicc` in whatever tree
-Make is currently running in.
-
-The target first creates `$(OBJDIR)`, then loops over `$(COMPILER_SRCS)`.
-`$$src` is a shell variable; the doubled dollar signs pass a literal `$`
-through Make to the shell. `$${src%.c}` strips the `.c` suffix, so `parse.c`
-maps to `.o/parse.o`.
-
-Each loop iteration compiles one root compiler source with `$(CC)
-$(CFLAGS)`. The `|| exit 1` guard stops the loop at the first failed compile
-instead of continuing to link with a missing or stale object.
-
-The final command links `$(LOCAL_CHIBICC)` from the explicit `$(OBJS)` list.
-`$(LDFLAGS)` remains available for callers that need additional link flags.
-The recipe intentionally avoids GNU Make pattern rules and automatic
-variables such as `$@`, `$<`, and `$^`, keeping the local stage build usable
-with pdpmake.
-
-The compiler build uses `$(CC) $(CFLAGS)`. In stage 1, that is the host
-compiler with the repository warning policy. In stage 2, the outer Makefile
-sets `CC` to the stage 1 compiler and clears `CFLAGS`, so chibicc receives
-only the stage-local include path.
-
-## Local test build
-
-```make
-test-compiler: compiler
-	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
-	for src in $(TEST_SRCS); do \
-		stem=$${src#test/}; \
-		stem=$${stem%.c}; \
-		obj=$(TEST_OBJDIR)/$$stem.o; \
-		exe=$(TEST_EXEDIR)/$$stem.exe; \
-		./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $$obj $$src || exit 1; \
-		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
-			|| exit 1; \
-	done
-	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
-	test/driver.sh ./$(LOCAL_CHIBICC)
-```
-
-`test-compiler` depends on `compiler`, so the local `./chibicc` is rebuilt
-before test objects are compiled. The recipe creates the test object and
-executable directories, then loops over `$(TEST_SRCS)`.
-
-For each source, `$${src#test/}` removes the leading `test/`, and
-`$${stem%.c}` removes the `.c` suffix. `test/arith.c` therefore becomes the
-stem `arith`, the object path `test/.o/arith.o`, and the executable path
-`test/.exe/arith.exe`.
-
-The compile step always uses the local stage compiler with the stage-local
-`include/` and `test/` directories. The link step combines the test object
-with `test/shared/common.c` and writes the executable to `$(TEST_EXEDIR)`.
-Each command exits the loop immediately on failure.
-
-After the loop, the target runs each `test/.exe/*.exe` program, printing the
-executable path before running it, and then runs `test/driver.sh` against the
-local `./chibicc`.
-
-The link step uses `$(TEST_LINK_CC)` without `$(CFLAGS)`, so stage 1 test
-helper warnings do not become `-Werror` failures. Stage 2 overrides
-`TEST_LINK_CC` to the host compiler because chibicc does not accept every
-linker option used here, such as `-pthread`.
-
 ## Cleanup and phony targets
 
 ```make
-# Misc.
-
 clean:
 	rm -rf chibicc .make .o tmp* test/.exe test/.o test/*.s test/*.exe
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: clean compiler default src-dist test test-compiler
+.PHONY: all clean compiler default src-dist test test-compiler
 .PHONY: test-all test-stage2
 ```
 
