@@ -10,7 +10,7 @@ finally repeats the same idea for a stage 2 compiler built by stage 1.
 ## Global flags and file discovery
 
 ```make
-CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch
+CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
 
 SRCS=$(wildcard *.c)
 OBJS=$(SRCS:.c=.o)
@@ -22,6 +22,8 @@ TESTS=$(TEST_SRCS:.c=.exe)
 `CFLAGS` is the shared compile/link flag set used when the host compiler
 links `chibicc` executables. It requests C11, debug information, non-common
 global definitions, and most warnings while suppressing switch warnings.
+`-Werror` then promotes any remaining host compiler warning to a build
+failure.
 
 `SRCS` is computed with GNU Make's `wildcard` function. It expands to every
 top-level `.c` source file in the repository root. `OBJS` is then a
