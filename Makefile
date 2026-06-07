@@ -36,7 +36,7 @@ DIST_INCLUDE_FILES=\
 	include/stddef.h \
 	include/stdnoreturn.h
 
-TEST_FILES=\
+TEST_SRCS=\
 	test/alignof.c \
 	test/alloca.c \
 	test/arith.c \
@@ -53,16 +53,11 @@ TEST_FILES=\
 	test/constexpr.c \
 	test/control.c \
 	test/decl.c \
-	test/driver.sh \
 	test/enum.c \
 	test/extern.c \
 	test/float.c \
 	test/function.c \
 	test/generic.c \
-	test/include1.h \
-	test/include2.h \
-	test/include3.h \
-	test/include4.h \
 	test/initializer.c \
 	test/line.c \
 	test/literal.c \
@@ -70,18 +65,10 @@ TEST_FILES=\
 	test/offsetof.c \
 	test/pointer.c \
 	test/pragma-once.c \
-	test/shared/common.c \
 	test/sizeof.c \
 	test/stdhdr.c \
 	test/string.c \
 	test/struct.c \
-	test/test.h \
-	test/thirdparty/common.sh.inc \
-	test/thirdparty/cpython.sh \
-	test/thirdparty/git.sh \
-	test/thirdparty/libpng.sh \
-	test/thirdparty/sqlite.sh \
-	test/thirdparty/tinycc.sh \
 	test/tls.c \
 	test/typedef.c \
 	test/typeof.c \
@@ -92,11 +79,23 @@ TEST_FILES=\
 	test/variable.c \
 	test/vla.c
 
+TEST_FILES=$(TEST_SRCS) \
+	test/driver.sh \
+	test/include1.h \
+	test/include2.h \
+	test/include3.h \
+	test/include4.h \
+	test/shared/common.c \
+	test/test.h \
+	test/thirdparty/common.sh.inc \
+	test/thirdparty/cpython.sh \
+	test/thirdparty/git.sh \
+	test/thirdparty/libpng.sh \
+	test/thirdparty/sqlite.sh \
+	test/thirdparty/tinycc.sh
+
 DIST_FILES=$(DIST_ROOT_FILES) $(COMPILER_SRCS) $(DIST_INCLUDE_FILES) \
 	$(TEST_FILES)
-
-TEST_SRCS=$(foreach path,$(filter test/%.c,$(TEST_FILES)),\
-	$(if $(findstring /,$(patsubst test/%,%,$(path))),,$(path)))
 
 LOCAL_CHIBICC=chibicc
 OBJDIR=.o

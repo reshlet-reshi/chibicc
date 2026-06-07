@@ -60,22 +60,23 @@ DIST_INCLUDE_FILES=\
 	...
 	include/stdnoreturn.h
 
-TEST_FILES=\
+TEST_SRCS=\
 	test/alignof.c \
 	test/alloca.c \
 	test/arith.c \
+	...
+	test/vla.c
+
+TEST_FILES=$(TEST_SRCS) \
 	test/driver.sh \
 	test/include1.h \
 	test/shared/common.c \
 	test/thirdparty/common.sh.inc \
 	...
-	test/vla.c
+	test/thirdparty/tinycc.sh
 
 DIST_FILES=$(DIST_ROOT_FILES) $(COMPILER_SRCS) $(DIST_INCLUDE_FILES) \
 	$(TEST_FILES)
-
-TEST_SRCS=$(foreach path,$(filter test/%.c,$(TEST_FILES)),\
-	$(if $(findstring /,$(patsubst test/%,%,$(path))),,$(path)))
 ```
 
 The source distribution no longer asks Git for a file list at build time.
@@ -89,16 +90,19 @@ directory.
 `COMPILER_SRCS` is the semantic list of root compiler implementation sources.
 Those files become `$(OBJDIR)/*.o` and then link into `chibicc`.
 
-`TEST_FILES` lists every current distributed file under `test/`, including
-headers, shell scripts, third-party test harnesses, and nested helpers.
-`DIST_FILES` is derived from the smaller lists, so compiler and test files are
-not repeated in one giant manifest.
+`TEST_SRCS` is the semantic list of direct `test/*.c` programs. Those files
+become local test objects and executables.
 
-`TEST_SRCS` is derived from `TEST_FILES` by first taking `test/%.c` entries.
-For each candidate, Make removes the `test/` prefix and checks whether the
-rest still contains `/`. Direct files such as `test/arith.c` become test
-programs. Nested helper sources such as `test/shared/common.c` stay in the
-source distribution but are not standalone test executables.
+`TEST_FILES` starts with `$(TEST_SRCS)` and then adds every current
+distributed non-program file under `test/`, including headers, shell scripts,
+third-party test harnesses, and nested helpers. This keeps the test program
+list explicit while still deriving the source distribution's test subtree from
+one place.
+
+`DIST_FILES` is derived from the smaller lists, so compiler and test files are
+not repeated in one giant manifest. Nested helper sources such as
+`test/shared/common.c` stay in the source distribution but are not standalone
+test executables.
 
 ## Local stage outputs
 
