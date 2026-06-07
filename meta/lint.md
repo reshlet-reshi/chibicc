@@ -10,9 +10,13 @@ The only allowed `.ini` file is `meta/mypy.ini`, which is validated by mypy
 itself. Python files are checked by Ruff and mypy.
 
 `lint.py` also compares the tracked non-`meta/` file set, intentionally
-omitting `.gitignore`, against the root `Makefile` `DIST_FILES` list. New
-source distribution inputs must therefore be added to that explicit list or to
-an explicit omission policy.
+omitting `.gitignore` and `.gitmodules`, against the root `Makefile`
+`DIST_FILES` list. New source distribution inputs must therefore be added to
+that explicit list or to an explicit omission policy.
+
+Build and test validation uses `meta/pdpmake.sh`, the repository-local wrapper
+around the pdpmake submodule. The full pdpmake stage test is part of this lint
+contract through the extra executable list below.
 
 After per-file dispatch succeeds, `lint.py` runs these extra metadata
 validators.
@@ -20,3 +24,4 @@ validators.
 - `meta/README.py`
 - `meta/branches.py`
 - `meta/manifest.py`
+- `meta/test-pdpmake.sh`

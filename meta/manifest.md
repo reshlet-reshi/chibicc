@@ -29,6 +29,7 @@ meta/
 ```
 
 - [`.gitignore`](replica/.gitignore.md)
+- [`.gitmodules`](replica/.gitmodules.md)
 - [`LICENSE`](replica/LICENSE.md)
 - [`Makefile`](replica/Makefile.md)
 - [`README.md`](replica/README.md.md)

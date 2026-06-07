@@ -34,6 +34,21 @@ def git_paths(args: Sequence[str]) -> set[str]:
     return {p.decode() for p in out.rstrip(b"\0").split(b"\0")}
 
 
+def meta_gitlinks() -> set[str]:
+    out = git(["ls-files", "-s", "-z", "meta"])
+    if not out:
+        return set()
+
+    paths: set[str] = set()
+    for record in out.rstrip(b"\0").split(b"\0"):
+        metadata, path = record.decode().split("\t", 1)
+        mode = metadata.split(" ", 1)[0]
+        if mode == "160000" and path.startswith("meta/"):
+            paths.add(path.removeprefix("meta/"))
+
+    return paths
+
+
 def readme_sort_key(path: str) -> tuple[bool, str]:
     return (not path.endswith("/"), path)
 
@@ -66,6 +81,7 @@ def visible_meta_paths() -> set[str]:
             "meta",
         ],
     )
+    gitlinks = meta_gitlinks()
     visible: set[str] = set()
     has_replica = False
 
@@ -76,6 +92,10 @@ def visible_meta_paths() -> set[str]:
         rel = path.removeprefix("meta/")
         if rel.startswith(REPLICA):
             has_replica = True
+            continue
+
+        if rel in gitlinks:
+            visible.add(f"{rel}/")
             continue
 
         visible.add(rel)

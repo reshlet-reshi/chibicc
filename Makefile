@@ -120,12 +120,14 @@ test-all: test test-stage2
 # Stage 2
 
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
-	$(MAKE) -C $(STAGE2) 'CC=$(abspath $(STAGE1_CHIBICC)) -Iinclude' \
-		CFLAGS= stage-compiler
+	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
+		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
+			CFLAGS= stage-compiler
 
 test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
-	$(MAKE) -C $(STAGE2) 'CC=$(abspath $(STAGE1_CHIBICC)) -Iinclude' \
-		'TEST_LINK_CC=$(CC)' CFLAGS= stage-test
+	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
+		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
+			"TEST_LINK_CC=$(CC)" CFLAGS= stage-test
 
 # Stage extraction
 
@@ -142,30 +144,34 @@ $(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
 
 # Local stage build
 
-stage-compiler: $(LOCAL_CHIBICC)
+stage-compiler:
+	mkdir -p $(OBJDIR)
+	for src in $(COMPILER_SRCS); do \
+		obj=$(OBJDIR)/$${src%.c}.o; \
+		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
+	done
+	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
 
-$(LOCAL_CHIBICC): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-$(OBJDIR)/%.o: %.c chibicc.h
-	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-stage-test: $(TESTS)
+stage-test: stage-compiler
+	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
+	for src in $(TEST_SRCS); do \
+		stem=$${src#test/}; \
+		stem=$${stem%.c}; \
+		obj=$(TEST_OBJDIR)/$$stem.o; \
+		exe=$(TEST_EXEDIR)/$$stem.exe; \
+		./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $$obj $$src || exit 1; \
+		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
+			|| exit 1; \
+	done
 	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
 	test/driver.sh ./$(LOCAL_CHIBICC)
-
-$(TEST_EXEDIR)/%.exe: $(LOCAL_CHIBICC) test/%.c test/shared/common.c
-	mkdir -p $(@D) $(TEST_OBJDIR)
-	./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $(TEST_OBJDIR)/$*.o test/$*.c
-	$(TEST_LINK_CC) -pthread -o $@ $(TEST_OBJDIR)/$*.o test/shared/common.c
 
 # Misc.
 
 src-dist: $(SRC_DIST)
 
 $(SRC_DIST): $(DIST_FILES)
-	mkdir -p $(dir $@) $(dir $(SRC_DIST_LIST))
+	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
 	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
 	tar --null -T $(SRC_DIST_LIST) \
 		--transform='s,^,$(SRC_DIST_ROOT)/,' \

@@ -19,6 +19,7 @@ SHELL_EXTENSIONS = {".sh", ".sh.inc"}
 NOOP_EXTENSIONS = {
     ".c",
     ".gitignore",
+    ".gitmodules",
     ".h",
     ".md",
 }
@@ -61,7 +62,16 @@ def git_visible_paths() -> set[Path]:
 
 def git_source_dist_paths() -> set[Path]:
     proc = subprocess.run(
-        ["git", "ls-files", "-z", "--", ".", ":!meta", ":!.gitignore"],
+        [
+            "git",
+            "ls-files",
+            "-z",
+            "--",
+            ".",
+            ":!meta",
+            ":!.gitignore",
+            ":!.gitmodules",
+        ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

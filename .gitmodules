@@ -1,0 +1,3 @@
+[submodule "meta/pdpmake"]
+	path = meta/pdpmake
+	url = https://github.com/reshlet-reshi/pdpmake

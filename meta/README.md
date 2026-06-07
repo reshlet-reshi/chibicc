@@ -2,8 +2,11 @@
 
 `replica/` contains one Markdown file for each path listed in
 `meta/manifest.md`. Those files mirror repository paths and hold per-file
-documentation notes; individual replica files are intentionally not listed here.
+documentation notes; individual replica files are intentionally not listed
+here. Git submodules under `meta/` are listed as directory entries.
 
+- `pdpmake/`
+  - Git submodule containing pdpmake for Makefile compatibility checks.
 - `replica/`
   - Per-file documentation subtree for paths listed in `meta/manifest.md`.
 - `AGENTS.md`
@@ -31,6 +34,10 @@ documentation notes; individual replica files are intentionally not listed here.
   - Enforces the repository manifest, omission contract, and exact replica docs.
 - `mypy.ini`
   - Strict mypy configuration used by metadata lint tooling.
+- `pdpmake.sh`
+  - Self-locating wrapper that builds and execs the local pdpmake submodule.
 - `reset.sh`
   - Repo-root reset helper for discarding local tracked, untracked, and ignored
     changes after confirmation.
+- `test-pdpmake.sh`
+  - Commit-gate wrapper that runs stage tests through pdpmake and cleans up.
