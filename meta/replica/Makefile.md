@@ -43,7 +43,7 @@ SRCS=\
 OBJS=$(SRCS:.c=.o)
 
 chibicc: $(OBJS)
-	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o chibicc $(OBJS)
 
 codegen.o: codegen.c chibicc.h
 	$(CC) $(CFLAGS) -c -o codegen.o codegen.c
@@ -68,8 +68,7 @@ files become root `*.o` objects and then link into `chibicc`.
 preserving the stem, so `parse.c` becomes `parse.o`.
 
 `chibicc` is a real file target. It depends on the full object list, and its
-recipe links the literal `chibicc` executable from `$(OBJS)`. `$(LDFLAGS)`
-remains available for callers that need additional link flags.
+recipe links the literal `chibicc` executable from `$(OBJS)`.
 
 Each compiler object is also a real file target. The Makefile writes these
 rules explicitly instead of using GNU Make pattern target syntax, keeping the

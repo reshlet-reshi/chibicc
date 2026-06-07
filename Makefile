@@ -18,7 +18,7 @@ SRCS=\
 OBJS=$(SRCS:.c=.o)
 
 chibicc: $(OBJS)
-	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o chibicc $(OBJS)
 
 codegen.o: codegen.c chibicc.h
 	$(CC) $(CFLAGS) -c -o codegen.o codegen.c
