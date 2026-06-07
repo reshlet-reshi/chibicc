@@ -28,4 +28,4 @@ documentation notes; individual replica files are intentionally not listed here.
   - Positive manifest of tracked repository files outside `meta/` and its
     omission contract.
 - `manifest.py`
-  - Enforces the repository manifest against its embedded omission contract.
+  - Enforces the repository manifest, omission contract, and exact replica docs.

@@ -11,19 +11,15 @@ META = Path(__file__).resolve().parent
 ROOT = META.parent
 MYPY_CACHE = Path("/tmp/chibicc-mypy-cache")
 EXTRA_LINTS = META / "lint.md"
+REPLICA = Path("meta/replica")
 ALLOWED_EXTENSIONLESS = {"LICENSE", "Makefile"}
 SHELL_EXTENSIONS = {".sh", ".sh.inc"}
 NOOP_EXTENSIONS = {
     ".c",
     ".gitignore",
-    ".gitignore.md",
     ".h",
     ".ini",
-    ".ini.md",
     ".md",
-    ".md.md",
-    ".sh.inc.md",
-    ".sh.md",
 }
 RECOGNIZED_EXTENSIONS = NOOP_EXTENSIONS | SHELL_EXTENSIONS | {".py"}
 
@@ -84,6 +80,10 @@ def full_extension(path: Path) -> str:
     if index == -1:
         return ""
     return path.name[index:]
+
+
+def is_replica_path(path: Path) -> bool:
+    return path == REPLICA or REPLICA in path.parents
 
 
 def extra_lints(path: Path) -> list[Path]:
@@ -182,7 +182,9 @@ def lint_file(path: Path, python_paths: list[Path]) -> None:
 
 
 def main() -> None:
-    files = walk_visible_files()
+    files = [
+        path for path in walk_visible_files() if not is_replica_path(path)
+    ]
     findings = unrecognized_files(files)
     if findings:
         report_unrecognized_files(findings)

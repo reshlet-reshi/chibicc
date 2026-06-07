@@ -167,7 +167,15 @@ def replica_doc_path(path: str) -> str:
 
 
 def replica_docs() -> set[str]:
-    return git_paths(["ls-files", REPLICA])
+    root = ROOT / REPLICA
+    if not root.exists():
+        return set()
+
+    return {
+        path.relative_to(ROOT).as_posix()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
 
 
 def report(title: str, paths: Sequence[str]) -> None:
