@@ -3,6 +3,7 @@
 **/*.o
 **/*.s
 **/a.out
+**/__pycache__/
 /tmp*
 /thirdparty
 /chibicc

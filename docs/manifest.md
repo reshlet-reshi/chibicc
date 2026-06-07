@@ -2,10 +2,11 @@
 
 | File | Status | Notes |
 | --- | --- | --- |
-| `.gitignore` | OK | Ignores build/test outputs, local temporaries, and third-party checkout state. |
+| `.gitignore` | OK | Ignores build/test outputs, Python bytecode caches, local temporaries, and third-party checkout state. |
 | `docs/branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
 | `docs/manifest.ignore.md` | Reviewed | Defines the omission contract for files intentionally left out of this manifest. |
 | `docs/manifest.md` | Reviewed | Positive manifest of tracked files requiring explicit audit/status. |
+| `docs/manifest.py` | Reviewed | Enforces this manifest against the manifest ignore contract. |
 | `LICENSE` | OK | MIT license text. |
 | `Makefile` | Needs cleanup | Core build/test entrypoint; `test-all` should be added to `.PHONY`. |
 | `README.md` | OK | Upstream project overview and design notes. |

@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+import argparse
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = ROOT / "docs" / "manifest.md"
+IGNORE = ROOT / "docs" / "manifest.ignore.md"
+
+
+def git(args, input_data=None):
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=ROOT,
+        input=input_data,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if proc.returncode:
+        sys.stderr.write(proc.stderr.decode())
+        raise SystemExit(proc.returncode)
+    return proc.stdout
+
+
+def git_paths(args):
+    out = git([*args, "-z"])
+    if not out:
+        return set()
+    return {p.decode() for p in out.rstrip(b"\0").split(b"\0")}
+
+
+def extract_gitignore_block(path):
+    lines = path.read_text().splitlines()
+    blocks = []
+    current = None
+
+    for line in lines:
+        if current is None:
+            if line == "```gitignore":
+                current = []
+            continue
+
+        if line == "```":
+            blocks.append(current)
+            current = None
+            continue
+
+        current.append(line)
+
+    if current is not None:
+        raise SystemExit(f"{path}: unclosed gitignore fence")
+    if len(blocks) != 1:
+        raise SystemExit(f"{path}: expected exactly one gitignore fence")
+
+    return "\n".join(blocks[0]) + "\n"
+
+
+def manifest_paths(path):
+    paths = []
+    row_re = re.compile(r"^\| `([^`]+)` \|")
+
+    for line in path.read_text().splitlines():
+        match = row_re.match(line)
+        if match:
+            paths.append(match.group(1))
+
+    duplicates = sorted({p for p in paths if paths.count(p) > 1})
+    if duplicates:
+        report("duplicate manifest entries", duplicates)
+        raise SystemExit(1)
+
+    return set(paths)
+
+
+def ignored_by_manifest(patterns):
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8") as f:
+        f.write(patterns)
+        f.flush()
+        return git_paths(["ls-files", "-ci", "-X", f.name])
+
+
+def ignored_by_root_gitignore():
+    return git_paths(["ls-files", "-ci", "-X", str(ROOT / ".gitignore")])
+
+
+def report(title, paths):
+    if not paths:
+        return
+    print(f"{title}:", file=sys.stderr)
+    for path in paths:
+        print(f"  {path}", file=sys.stderr)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Validate docs/manifest.md against docs/manifest.ignore.md",
+    )
+    parser.parse_args()
+
+    tracked = git_paths(["ls-files"])
+    allowed_omissions = ignored_by_manifest(extract_gitignore_block(IGNORE))
+    allowed_omissions |= ignored_by_root_gitignore()
+    required = tracked - allowed_omissions
+    listed = manifest_paths(MANIFEST)
+
+    missing = sorted(required - listed)
+    unknown = sorted(listed - tracked)
+    ignored_but_listed = sorted(listed & allowed_omissions)
+
+    if missing or unknown or ignored_but_listed:
+        report("missing from manifest", missing)
+        report("listed but not tracked", unknown)
+        report("listed but ignored by manifest rules", ignored_but_listed)
+        raise SystemExit(1)
+
+    print(
+        f"manifest ok: {len(listed)} listed, {len(allowed_omissions)} omitted",
+    )
+
+
+if __name__ == "__main__":
+    main()

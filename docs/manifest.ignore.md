@@ -9,8 +9,8 @@ and header files are omitted for now because they belong to a separate compiler
 implementation audit.
 
 The fenced block below is real gitignore syntax interpreted relative to the
-repository root. Future manifest tooling must also honor the repo-root
-`.gitignore`; that delegation is part of this contract and is declared here.
+repository root. Manifest tooling must also honor the repo-root `.gitignore`;
+that delegation is part of this contract and is declared here.
 
 ```gitignore
 # C implementation and test sources
