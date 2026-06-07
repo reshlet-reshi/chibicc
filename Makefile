@@ -107,6 +107,10 @@ TEST_EXEDIR=test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 TEST_LINK_CC?=$(CC)
 
+# Default
+
+default: $(STAGE1_CHIBICC)
+
 # Stage 1
 
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
@@ -182,4 +186,5 @@ clean:
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: clean src-dist stage-compiler stage-test test test-all test-stage2
+.PHONY: clean default src-dist stage-compiler stage-test test
+.PHONY: test-all test-stage2

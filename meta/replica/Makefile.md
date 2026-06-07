@@ -135,9 +135,13 @@ The substitutions preserve each stem. For example, `parse.c` maps to
 `TEST_LINK_CC` defaults to `$(CC)` but can be overridden by the outer
 orchestrator when compiler-building and test-linking need different drivers.
 
-## Stage 1 orchestration
+## Default and stage 1 orchestration
 
 ```make
+# Default
+
+default: $(STAGE1_CHIBICC)
+
 # Stage 1
 
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
@@ -149,9 +153,14 @@ test: $(STAGE1)/.src-ready
 test-all: test test-stage2
 ```
 
-The first real target is `$(STAGE1_CHIBICC)`, so plain `make` builds the
-stage 1 compiler. Its prerequisite, `$(STAGE1)/.src-ready`, is a stamp that
-means the source archive has been extracted into `.make/stage1`.
+The first real target is `default`, so plain `make` builds the stage 1
+compiler through that named target. `default` depends on
+`$(STAGE1_CHIBICC)`, which remains the real file target for the generated
+stage 1 compiler. This keeps the default build small while leaving room for a
+future `all` target to collect broader work.
+
+`$(STAGE1_CHIBICC)` depends on `$(STAGE1)/.src-ready`, a stamp that means the
+source archive has been extracted into `.make/stage1`.
 
 The recipe then enters the extracted tree with `$(MAKE) -C $(STAGE1)`.
 `$(MAKE)` preserves recursive Make behavior such as jobserver flags. Stage 1
@@ -339,7 +348,8 @@ clean:
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: clean src-dist stage-compiler stage-test test test-all test-stage2
+.PHONY: clean default src-dist stage-compiler stage-test test
+.PHONY: test-all test-stage2
 ```
 
 `clean` removes local direct-stage outputs, extracted stage trees, source
