@@ -3,7 +3,10 @@
 | File | Status | Notes |
 | --- | --- | --- |
 | `.gitignore` | OK | Ignores build/test outputs, Python bytecode caches, local temporaries, and third-party checkout state. |
+| `AGENTS.md` | Reviewed | Root policy pointer to the detailed docs agent instructions. |
 | `docs/branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
+| `docs/AGENTS.md` | Reviewed | Agent policy requiring clean commits and passing docs lint. |
+| `docs/lint.sh` | Reviewed | Self-locating Bash wrapper for the docs manifest checker. |
 | `docs/manifest.ignore.md` | Reviewed | Defines the omission contract for files intentionally left out of this manifest. |
 | `docs/manifest.md` | Reviewed | Positive manifest of tracked files requiring explicit audit/status. |
 | `docs/manifest.py` | Reviewed | Enforces this manifest against the manifest ignore contract. |
