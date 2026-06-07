@@ -5,7 +5,8 @@ CHIBICC=.make/stage1/chibicc
 SRCS=$(wildcard *.c)
 OBJDIR=.make/stage1/.o
 OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
-STAGE2_OBJS=$(SRCS:%.c=stage2/%.o)
+STAGE2_OBJDIR=stage2/.o
+STAGE2_OBJS=$(SRCS:%.c=$(STAGE2_OBJDIR)/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
 TEST_OBJDIR=.make/stage1/test/.o
@@ -39,9 +40,9 @@ test-all: test test-stage2
 stage2/chibicc: $(STAGE2_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-stage2/%.o: $(CHIBICC) %.c
-	mkdir -p stage2/test
-	./$(CHIBICC) -Iinclude -c -o $(@D)/$*.o $*.c
+$(STAGE2_OBJDIR)/%.o: $(CHIBICC) %.c
+	mkdir -p $(@D)
+	./$(CHIBICC) -Iinclude -c -o $@ $*.c
 
 stage2/test/%.exe: stage2/chibicc test/%.c test/shared/common.c
 	mkdir -p stage2/test

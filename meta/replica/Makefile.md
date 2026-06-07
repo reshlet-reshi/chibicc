@@ -17,7 +17,8 @@ CHIBICC=.make/stage1/chibicc
 SRCS=$(wildcard *.c)
 OBJDIR=.make/stage1/.o
 OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
-STAGE2_OBJS=$(SRCS:%.c=stage2/%.o)
+STAGE2_OBJDIR=stage2/.o
+STAGE2_OBJS=$(SRCS:%.c=$(STAGE2_OBJDIR)/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
 TEST_OBJDIR=.make/stage1/test/.o
@@ -42,9 +43,10 @@ top-level `.c` source file in the repository root.
 `OBJDIR` names the private build directory for host-built compiler objects.
 `OBJS` is then a substitution reference over `SRCS`: every source becomes an
 object under `.make/stage1/.o/`. For example, `parse.c` contributes
-`.make/stage1/.o/parse.o`. `STAGE2_OBJS` performs a separate substitution for
-the self-hosted compiler build, so `parse.c` contributes `stage2/parse.o`
-there.
+`.make/stage1/.o/parse.o`. `STAGE2_OBJDIR` names the corresponding private
+object directory for the self-hosted compiler build. `STAGE2_OBJS` performs a
+separate substitution for that build, so `parse.c` contributes
+`stage2/.o/parse.o` there.
 
 `TEST_SRCS` performs the same discovery for C tests under `test/`.
 `TEST_OBJDIR` names the private build directory for stage 1 test objects.
@@ -168,40 +170,40 @@ stage2/chibicc: $(STAGE2_OBJS)
 ```
 
 Stage 2 is a self-hosting check. Instead of linking root-level objects built
-by the host compiler, `stage2/chibicc` links corresponding objects under the
-`stage2/` directory.
+by the host compiler, `stage2/chibicc` links corresponding objects under
+`stage2/.o/`.
 
 `$(STAGE2_OBJS)` is kept separate from `$(OBJS)` so the stage 2 build remains
 under `stage2/` even though stage 1 compiler objects moved under
 `.make/stage1/.o/`. Those objects are produced by the next pattern rule.
 
 The link command mirrors the stage 1 link. `$@` is `stage2/chibicc`, and `$^`
-is the full list of `stage2/*.o` prerequisites.
+is the full list of `stage2/.o/*.o` prerequisites.
 
 ## Stage 2 objects
 
 ```make
-stage2/%.o: $(CHIBICC) %.c
-	mkdir -p stage2/test
-	./$(CHIBICC) -Iinclude -c -o $(@D)/$*.o $*.c
+$(STAGE2_OBJDIR)/%.o: $(CHIBICC) %.c
+	mkdir -p $(@D)
+	./$(CHIBICC) -Iinclude -c -o $@ $*.c
 ```
 
 This pattern rule builds stage 2 object files by compiling top-level compiler
 sources with the stage 1 compiler at `$(CHIBICC)`.
 
-The target pattern is `stage2/%.o`, so `$*` is the source stem. For
-`stage2/parse.o`, `$*` is `parse`. The prerequisite `%.c` then resolves to
+The target pattern is `$(STAGE2_OBJDIR)/%.o`, so `$*` is the source stem. For
+`stage2/.o/parse.o`, `$*` is `parse`. The prerequisite `%.c` then resolves to
 `parse.c`.
 
-`mkdir -p stage2/test` creates the stage 2 output directory tree before the
-object is written. `$(@D)` is the directory part of the target path; for
-`stage2/parse.o`, it is `stage2`. The compile command therefore writes
-`stage2/parse.o` from `parse.c` using `./$(CHIBICC)`. The explicit
-`-Iinclude` keeps the repository's compiler-private headers visible now that
-the stage 1 compiler executable lives under `.make/stage1/`.
+`mkdir -p $(@D)` creates the stage 2 object directory before the object is
+written. `$(@D)` is the directory part of the target path; for
+`stage2/.o/parse.o`, it is `stage2/.o`. The compile command writes `$@`,
+which is the full target path, from `parse.c` using `./$(CHIBICC)`. The
+explicit `-Iinclude` keeps the repository's compiler-private headers visible
+now that the stage 1 compiler executable lives under `.make/stage1/`.
 
-The directory creation includes `stage2/test` even for compiler objects
-because later stage 2 test rules need that directory as well.
+Stage 2 test outputs are deliberately handled by their own rule, so this rule
+only creates the compiler object directory.
 
 ## Stage 2 test executables
 
@@ -257,7 +259,9 @@ any stale root `chibicc`, the `.make` build scratch directory, temporary root
 files matching `tmp*`, all discovered stage 1 test executables, stale
 root-adjacent `test/*.exe` outputs, test assembly outputs, and the entire
 `stage2` tree. Removing `.make` clears the current stage 1 compiler, host
-compiler objects, stage 1 test objects, and stage 1 test executables.
+compiler objects, stage 1 test objects, and stage 1 test executables. Removing
+`stage2` clears the stage 2 compiler, `stage2/.o/` compiler objects, and
+`stage2/test/` outputs.
 
 The second command finds editor backup files and object files below the
 repository root and removes them. That cleanup also catches stale `test/*.o`
