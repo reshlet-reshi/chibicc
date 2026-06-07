@@ -12,7 +12,7 @@ ROOT = META.parent
 MYPY_CACHE = Path("/tmp/chibicc-mypy-cache")
 EXTRA_LINTS = META / "lint.md"
 REPLICA = Path("meta/replica")
-MYPY_CONFIG = Path("mypy.ini")
+MYPY_CONFIG = Path("meta/mypy.ini")
 ALLOWED_EXTENSIONLESS = {"LICENSE", "Makefile"}
 SHELL_EXTENSIONS = {".sh", ".sh.inc"}
 NOOP_EXTENSIONS = {
@@ -174,7 +174,7 @@ def lint_python(paths: Sequence[Path]) -> None:
             "-m",
             "mypy",
             "--config-file",
-            str(ROOT / "mypy.ini"),
+            str(ROOT / MYPY_CONFIG),
             "--cache-dir",
             str(MYPY_CACHE),
             *[str(path) for path in paths],

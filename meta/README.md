@@ -29,3 +29,8 @@ documentation notes; individual replica files are intentionally not listed here.
     omission contract.
 - `manifest.py`
   - Enforces the repository manifest, omission contract, and exact replica docs.
+- `mypy.ini`
+  - Strict mypy configuration used by metadata lint tooling.
+- `reset.sh`
+  - Repo-root reset helper for discarding local tracked, untracked, and ignored
+    changes after confirmation.

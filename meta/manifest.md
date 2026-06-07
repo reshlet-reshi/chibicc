@@ -29,12 +29,9 @@ meta/
 ```
 
 - [`.gitignore`](replica/.gitignore.md)
-- [`AGENTS.md`](replica/AGENTS.md.md)
 - [`LICENSE`](replica/LICENSE.md)
 - [`Makefile`](replica/Makefile.md)
-- [`mypy.ini`](replica/mypy.ini.md)
 - [`README.md`](replica/README.md.md)
-- [`reset.sh`](replica/reset.sh.md)
 - [`test/driver.sh`](replica/test/driver.sh.md)
 - [`test/thirdparty/common.sh.inc`](replica/test/thirdparty/common.sh.inc.md)
 - [`test/thirdparty/cpython.sh`](replica/test/thirdparty/cpython.sh.md)
