@@ -1,0 +1,12 @@
+[submodule "thirdparty/tinycc"]
+	path = thirdparty/tinycc
+	url = https://github.com/TinyCC/tinycc.git
+	ignore = untracked
+[submodule "thirdparty/libpng"]
+	path = thirdparty/libpng
+	url = https://github.com/rui314/libpng.git
+	ignore = untracked
+[submodule "thirdparty/sqlite"]
+	path = thirdparty/sqlite
+	url = https://github.com/sqlite/sqlite.git
+	ignore = untracked

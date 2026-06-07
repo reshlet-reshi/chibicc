@@ -1,7 +1,24 @@
 #include "test.h"
 #include "stddef.h"
 
+__attribute__((noreturn)) void attr_noreturn1(void);
+void attr_noreturn2(void) __attribute__((noreturn));
+char attr_aligned_global __attribute__((aligned(64)));
+__attribute__((aligned(64))) char attr_aligned_prefix_global;
+
 int main() {
+  ASSERT(4, ({ __attribute__((unused)) int x=4; x; }));
+  ASSERT(3, ({ int __attribute__((unused)) x=3; x; }));
+  ASSERT(8, ({ int (*fn)(void) __attribute__((unused)); sizeof(fn); }));
+  ASSERT(16, ({ char x __attribute__((aligned(16))); _Alignof(x); }));
+  ASSERT(0, ({ char x __attribute__((aligned(16))); (long)&x % 16; }));
+  ASSERT(32, ({ typedef char T __attribute__((aligned(32))); _Alignof(T); }));
+  ASSERT(0, (long)&attr_aligned_global % 64);
+  ASSERT(16, ({ __attribute__((aligned(16))) char x; _Alignof(x); }));
+  ASSERT(0, ({ __attribute__((aligned(16))) char x; (long)&x % 16; }));
+  ASSERT(32, ({ typedef __attribute__((aligned(32))) char T; _Alignof(T); }));
+  ASSERT(0, (long)&attr_aligned_prefix_global % 64);
+
   ASSERT(5, ({ struct { char a; int b; } __attribute__((packed)) x; sizeof(x); }));
   ASSERT(0, offsetof(struct __attribute__((packed)) { char a; int b; }, a));
   ASSERT(1, offsetof(struct __attribute__((packed)) { char a; int b; }, b));

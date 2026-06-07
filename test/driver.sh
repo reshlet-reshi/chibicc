@@ -181,6 +181,19 @@ check '-fcommon'
 echo 'int foo;' | $chibicc -fno-common -S -o- -xc - | grep -q '^foo:'
 check '-fno-common'
 
+# Unsupported semantic attributes
+echo 'int foo __attribute__((section("mysection")));' | $chibicc -c -o /dev/null -xc - 2>$tmp/attr-err && false
+grep -q 'unsupported attribute' $tmp/attr-err
+check 'unsupported attribute'
+
+echo 'int main() { char x __attribute__((aligned(64))); }' | $chibicc -c -o /dev/null -xc - 2>$tmp/attr-err && false
+grep -q 'over-aligned local variables are not supported' $tmp/attr-err
+check 'over-aligned local attribute'
+
+echo 'int main() { __attribute__((aligned(64))) char x; }' | $chibicc -c -o /dev/null -xc - 2>$tmp/attr-err && false
+grep -q 'over-aligned local variables are not supported' $tmp/attr-err
+check 'over-aligned local prefix attribute'
+
 # -include
 echo foo > $tmp/out.h
 echo bar | $chibicc -include $tmp/out.h -E -o- -xc - | grep -q -z 'foo.*bar'

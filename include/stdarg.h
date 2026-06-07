@@ -9,6 +9,10 @@ typedef struct {
 } __va_elem;
 
 typedef __va_elem va_list[1];
+#define __DEFINED_va_list 1
+
+typedef va_list __isoc_va_list;
+#define __DEFINED___isoc_va_list 1
 
 #define va_start(ap, last) \
   do { *(ap) = *(__va_elem *)__va_area__; } while (0)

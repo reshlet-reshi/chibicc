@@ -358,14 +358,139 @@ static void push_tag_scope(Token *tok, Type *ty) {
   hashmap_put2(&scope->tags, tok->loc, tok->len, ty);
 }
 
+static Token *skip_parens(Token *tok) {
+  if (!equal(tok, "("))
+    error_tok(tok, "expected '('");
+
+  int depth = 0;
+  do {
+    if (tok->kind == TK_EOF)
+      error_tok(tok, "unclosed '('");
+    if (equal(tok, "("))
+      depth++;
+    else if (equal(tok, ")"))
+      depth--;
+    tok = tok->next;
+  } while (depth > 0);
+
+  return tok;
+}
+
+static Token *skip_gnu_attribute(Token *tok) {
+  if (!equal(tok, "__attribute") && !equal(tok, "__attribute__"))
+    error_tok(tok, "expected __attribute__");
+  return tok->next;
+}
+
+static bool equal_attr(Token *tok, char *name) {
+  return equal(tok, name) || equal(tok, format("__%s__", name));
+}
+
+static bool is_gnu_attribute(Token *tok) {
+  return equal(tok, "__attribute") || equal(tok, "__attribute__");
+}
+
+static bool is_ignored_attr(Token *tok) {
+  static char *names[] = {
+    "access", "alloc_align", "alloc_size", "always_inline", "artificial",
+    "assume_aligned", "cold", "const", "deprecated", "fallthrough",
+    "flatten", "format", "gnu_inline", "hot", "leaf", "malloc",
+    "no_sanitize_thread", "noinline", "nonnull", "noreturn", "pure",
+    "returns_nonnull", "sentinel", "unused", "unavailable", "warn_unused_result",
+    "warning",
+  };
+
+  for (int i = 0; i < sizeof(names) / sizeof(*names); i++)
+    if (equal_attr(tok, names[i]))
+      return true;
+  return false;
+}
+
+static bool is_unsupported_semantic_attr(Token *tok) {
+  static char *names[] = {
+    "alias", "cleanup", "constructor", "destructor", "externally_visible",
+    "ifunc", "interrupt", "mode", "packed", "regparm", "retain", "section",
+    "target", "tls_model", "used", "vector_size", "visibility", "weak",
+  };
+
+  for (int i = 0; i < sizeof(names) / sizeof(*names); i++)
+    if (equal_attr(tok, names[i]))
+      return true;
+  return false;
+}
+
+static int read_aligned_attr(Token **rest, Token *tok) {
+  if (!equal(tok, "("))
+    error_tok(tok, "aligned attribute requires an argument");
+
+  int align = const_expr(&tok, tok->next);
+  tok = skip(tok, ")");
+
+  if (align <= 0 || (align & (align - 1)))
+    error_tok(tok, "alignment must be a positive power of two");
+
+  *rest = tok;
+  return align;
+}
+
+static void apply_type_align(Type **ty, int align) {
+  *ty = copy_type(*ty);
+  (*ty)->align = MAX((*ty)->align, align);
+}
+
+static Token *gnu_attribute(Token *tok, Type **ty, int *align) {
+  tok = skip_gnu_attribute(tok);
+  tok = skip(tok, "(");
+  tok = skip(tok, "(");
+
+  bool first = true;
+  while (!consume(&tok, tok, ")")) {
+    if (!first)
+      tok = skip(tok, ",");
+    first = false;
+
+    Token *name = tok;
+    tok = tok->next;
+
+    if (equal_attr(name, "aligned")) {
+      int n = read_aligned_attr(&tok, tok);
+      if (align)
+        *align = MAX(*align, n);
+      else
+        apply_type_align(ty, n);
+      continue;
+    }
+
+    if (is_ignored_attr(name)) {
+      if (equal(tok, "("))
+        tok = skip_parens(tok);
+      continue;
+    }
+
+    if (is_unsupported_semantic_attr(name))
+      error_tok(name, "unsupported attribute");
+
+    error_tok(name, "unknown attribute");
+  }
+
+  return skip(tok, ")");
+}
+
+static Token *attribute_suffix(Token *tok, Type **ty) {
+  while (is_gnu_attribute(tok))
+    tok = gnu_attribute(tok, ty, NULL);
+  return tok;
+}
+
 // declspec = ("void" | "_Bool" | "char" | "short" | "int" | "long"
 //             | "typedef" | "static" | "extern" | "inline"
 //             | "_Thread_local" | "__thread"
 //             | "signed" | "unsigned"
 //             | struct-decl | union-decl | typedef-name
-//             | enum-specifier | typeof-specifier
+//             | enum-specifier | typeof-specifier | "__builtin_va_list"
 //             | "const" | "volatile" | "auto" | "register" | "restrict"
-//             | "__restrict" | "__restrict__" | "_Noreturn")+
+//             | "__restrict" | "__restrict__" | "_Noreturn"
+//             | "__attribute__" "(" "(" ... ")" ")")+
 //
 // The order of typenames in a type-specifier doesn't matter. For
 // example, `int long static` means the same as `static long int`.
@@ -399,6 +524,7 @@ static Type *declspec(Token **rest, Token *tok, VarAttr *attr) {
 
   Type *ty = ty_int;
   int counter = 0;
+  int align = 0;
   bool is_atomic = false;
 
   while (is_typename(tok)) {
@@ -434,6 +560,11 @@ static Type *declspec(Token **rest, Token *tok, VarAttr *attr) {
         consume(&tok, tok, "__restrict__") || consume(&tok, tok, "_Noreturn"))
       continue;
 
+    if (is_gnu_attribute(tok)) {
+      tok = gnu_attribute(tok, &ty, &align);
+      continue;
+    }
+
     if (equal(tok, "_Atomic")) {
       tok = tok->next;
       if (equal(tok , "(")) {
@@ -454,6 +585,17 @@ static Type *declspec(Token **rest, Token *tok, VarAttr *attr) {
       else
         attr->align = const_expr(&tok, tok);
       tok = skip(tok, ")");
+      continue;
+    }
+
+    // Handle GNU C's built-in va_list type, which musl exposes in
+    // system headers as `typedef __builtin_va_list va_list;`.
+    if (equal(tok, "__builtin_va_list")) {
+      if (counter)
+        break;
+      ty = pointer_to(ty_void);
+      counter += OTHER;
+      tok = tok->next;
       continue;
     }
 
@@ -574,6 +716,8 @@ static Type *declspec(Token **rest, Token *tok, VarAttr *attr) {
     ty = copy_type(ty);
     ty->is_atomic = true;
   }
+  if (align)
+    apply_type_align(&ty, align);
 
   *rest = tok;
   return ty;
@@ -669,9 +813,18 @@ static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
 static Type *pointers(Token **rest, Token *tok, Type *ty) {
   while (consume(&tok, tok, "*")) {
     ty = pointer_to(ty);
-    while (equal(tok, "const") || equal(tok, "volatile") || equal(tok, "restrict") ||
-           equal(tok, "__restrict") || equal(tok, "__restrict__"))
-      tok = tok->next;
+    for (;;) {
+      if (is_gnu_attribute(tok)) {
+        tok = gnu_attribute(tok, &ty, NULL);
+        continue;
+      }
+      if (equal(tok, "const") || equal(tok, "volatile") || equal(tok, "restrict") ||
+          equal(tok, "__restrict") || equal(tok, "__restrict__")) {
+        tok = tok->next;
+        continue;
+      }
+      break;
+    }
   }
   *rest = tok;
   return ty;
@@ -686,7 +839,9 @@ static Type *declarator(Token **rest, Token *tok, Type *ty) {
     Type dummy = {};
     declarator(&tok, start->next, &dummy);
     tok = skip(tok, ")");
-    ty = type_suffix(rest, tok, ty);
+    ty = type_suffix(&tok, tok, ty);
+    tok = attribute_suffix(tok, &ty);
+    *rest = tok;
     return declarator(&tok, start->next, ty);
   }
 
@@ -698,7 +853,9 @@ static Type *declarator(Token **rest, Token *tok, Type *ty) {
     tok = tok->next;
   }
 
-  ty = type_suffix(rest, tok, ty);
+  ty = type_suffix(&tok, tok, ty);
+  tok = attribute_suffix(tok, &ty);
+  *rest = tok;
   ty->name = name;
   ty->name_pos = name_pos;
   return ty;
@@ -713,11 +870,16 @@ static Type *abstract_declarator(Token **rest, Token *tok, Type *ty) {
     Type dummy = {};
     abstract_declarator(&tok, start->next, &dummy);
     tok = skip(tok, ")");
-    ty = type_suffix(rest, tok, ty);
+    ty = type_suffix(&tok, tok, ty);
+    tok = attribute_suffix(tok, &ty);
+    *rest = tok;
     return abstract_declarator(&tok, start->next, ty);
   }
 
-  return type_suffix(rest, tok, ty);
+  ty = type_suffix(&tok, tok, ty);
+  tok = attribute_suffix(tok, &ty);
+  *rest = tok;
+  return ty;
 }
 
 // type-name = declspec abstract-declarator
@@ -878,6 +1040,8 @@ static Node *declaration(Token **rest, Token *tok, Type *basety, VarAttr *attr) 
       // For example, `int x[n+2]` is translated to `tmp = n + 2,
       // x = alloca(tmp)`.
       Obj *var = new_lvar(get_ident(ty->name), ty);
+      if (var->align > 16 && (!attr || !attr->align))
+        error_tok(ty->name, "over-aligned local variables are not supported");
       Token *tok = ty->name;
       Node *expr = new_binary(ND_ASSIGN, new_vla_ptr(var, tok),
                               new_alloca(new_var_node(ty->vla_size, tok)),
@@ -890,6 +1054,8 @@ static Node *declaration(Token **rest, Token *tok, Type *basety, VarAttr *attr) 
     Obj *var = new_lvar(get_ident(ty->name), ty);
     if (attr && attr->align)
       var->align = attr->align;
+    if (var->align > 16 && (!attr || !attr->align))
+      error_tok(ty->name, "over-aligned local variables are not supported");
 
     if (equal(tok, "=")) {
       Node *expr = lvar_initializer(&tok, tok->next, var);
@@ -1504,6 +1670,7 @@ static bool is_typename(Token *tok) {
       "const", "volatile", "auto", "register", "restrict", "__restrict",
       "__restrict__", "_Noreturn", "float", "double", "typeof", "inline",
       "_Thread_local", "__thread", "_Atomic",
+      "__builtin_va_list", "__attribute", "__attribute__",
     };
 
     for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++)
@@ -3148,7 +3315,9 @@ static void create_param_lvars(Type *param) {
     create_param_lvars(param->next);
     if (!param->name)
       error_tok(param->name_pos, "parameter name omitted");
-    new_lvar(get_ident(param->name), param);
+    Obj *var = new_lvar(get_ident(param->name), param);
+    if (var->align > 16)
+      error_tok(param->name, "over-aligned parameters are not supported");
   }
 }
 

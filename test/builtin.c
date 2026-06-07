@@ -28,6 +28,8 @@ int main() {
 
   ASSERT(1, ({ struct {int a; int b;} x; __builtin_types_compatible_p(typeof(x.a), typeof(x.b)); }));
 
+  ASSERT(sizeof(void *), ({ typedef __builtin_va_list T; sizeof(T); }));
+
   printf("OK\n");
   return 0;
 }

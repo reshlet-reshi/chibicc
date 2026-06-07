@@ -5,6 +5,7 @@
 **/a.out
 /tmp*
 /thirdparty
+/.vm
 /chibicc
 /test/*.exe
 /stage2
