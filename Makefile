@@ -15,7 +15,6 @@ COMPILER_SRCS=\
 	type.c \
 	unicode.c
 
-LOCAL_CHIBICC=chibicc
 OBJDIR=.o
 OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
 
@@ -25,7 +24,7 @@ compiler:
 		obj=$(OBJDIR)/$${src%.c}.o; \
 		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
 	done
-	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
 
 TEST_SRCS=\
 	test/alignof.c \
@@ -82,12 +81,12 @@ test-compiler: compiler
 		stem=$${stem%.c}; \
 		obj=$(TEST_OBJDIR)/$$stem.o; \
 		exe=$(TEST_EXEDIR)/$$stem.exe; \
-		./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $$obj $$src || exit 1; \
+		./chibicc -Iinclude -Itest -c -o $$obj $$src || exit 1; \
 		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
 			|| exit 1; \
 	done
 	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
-	test/driver.sh ./$(LOCAL_CHIBICC)
+	test/driver.sh ./chibicc
 
 SRC_DIST?=.make/chibicc.tar.gz
 SRC_DIST_ROOT=chibicc

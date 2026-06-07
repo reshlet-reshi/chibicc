@@ -40,7 +40,6 @@ COMPILER_SRCS=\
 	...
 	unicode.c
 
-LOCAL_CHIBICC=chibicc
 OBJDIR=.o
 OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
 
@@ -50,7 +49,7 @@ compiler:
 		obj=$(OBJDIR)/$${src%.c}.o; \
 		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
 	done
-	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
 ```
 
 `CFLAGS` is the host compiler warning and debug policy. It requests C11,
@@ -63,9 +62,8 @@ through Make's normal `MAKEFLAGS` handling.
 `COMPILER_SRCS` is the semantic list of root compiler implementation sources.
 Those files become `$(OBJDIR)/*.o` and then link into `chibicc`.
 
-`LOCAL_CHIBICC` is the local compiler binary. `OBJDIR` receives compiler
-objects such as `.o/parse.o`. `OBJS` maps every root compiler source into that
-object directory while preserving the stem.
+`OBJDIR` receives compiler objects such as `.o/parse.o`. `OBJS` maps every
+root compiler source into that object directory while preserving the stem.
 
 `compiler` builds `chibicc` in whatever tree Make is currently running in.
 The target first creates `$(OBJDIR)`, then loops over `$(COMPILER_SRCS)`.
@@ -76,8 +74,9 @@ maps to `.o/parse.o`.
 Each loop iteration compiles one root compiler source with `$(CC)
 $(CFLAGS)`. The `|| exit 1` guard stops the loop at the first failed compile
 instead of continuing to link with a missing or stale object. The final
-command links `$(LOCAL_CHIBICC)` from the explicit `$(OBJS)` list.
-`$(LDFLAGS)` remains available for callers that need additional link flags.
+command links the literal `chibicc` executable from the explicit `$(OBJS)`
+list. `$(LDFLAGS)` remains available for callers that need additional link
+flags.
 
 The recipe intentionally avoids GNU Make pattern rules and automatic
 variables such as `$@`, `$<`, and `$^`, keeping the local stage build usable
@@ -105,12 +104,12 @@ test-compiler: compiler
 		stem=$${stem%.c}; \
 		obj=$(TEST_OBJDIR)/$$stem.o; \
 		exe=$(TEST_EXEDIR)/$$stem.exe; \
-		./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $$obj $$src || exit 1; \
+		./chibicc -Iinclude -Itest -c -o $$obj $$src || exit 1; \
 		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
 			|| exit 1; \
 	done
 	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
-	test/driver.sh ./$(LOCAL_CHIBICC)
+	test/driver.sh ./chibicc
 ```
 
 `TEST_SRCS` is the semantic list of direct `test/*.c` programs. `TEST_OBJDIR`
