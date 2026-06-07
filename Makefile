@@ -6,6 +6,7 @@ OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
 STAGE2_OBJS=$(SRCS:%.c=stage2/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
+TEST_OBJDIR=.make/test/.o
 TEST_EXEDIR=.make/test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
@@ -20,9 +21,9 @@ $(OBJDIR)/%.o: %.c chibicc.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(TEST_EXEDIR)/%.exe: chibicc test/%.c test/shared/common.c
-	mkdir -p $(@D)
-	./chibicc -Iinclude -Itest -c -o test/$*.o test/$*.c
-	$(CC) -pthread -o $@ test/$*.o test/shared/common.c
+	mkdir -p $(@D) $(TEST_OBJDIR)
+	./chibicc -Iinclude -Itest -c -o $(TEST_OBJDIR)/$*.o test/$*.c
+	$(CC) -pthread -o $@ $(TEST_OBJDIR)/$*.o test/shared/common.c
 
 test: $(TESTS)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done

@@ -18,6 +18,7 @@ OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
 STAGE2_OBJS=$(SRCS:%.c=stage2/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
+TEST_OBJDIR=.make/test/.o
 TEST_EXEDIR=.make/test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
@@ -39,9 +40,10 @@ object under `.make/.o/`. For example, `parse.c` contributes
 self-hosted compiler build, so `parse.c` contributes `stage2/parse.o` there.
 
 `TEST_SRCS` performs the same discovery for C tests under `test/`.
+`TEST_OBJDIR` names the private build directory for stage 1 test objects.
 `TEST_EXEDIR` names the private build directory for stage 1 test executables.
-`TESTS` maps test sources into that directory, so `test/arith.c` becomes
-`.make/test/.exe/arith.exe`. `STAGE2_TESTS` maps the same sources to
+`TESTS` maps test sources into the executable directory, so `test/arith.c`
+becomes `.make/test/.exe/arith.exe`. `STAGE2_TESTS` maps the same sources to
 `stage2/test/*.exe` paths for the self-hosted test run.
 
 These variables are evaluated by Make before it decides which targets need to
@@ -83,9 +85,9 @@ relinking `chibicc`.
 
 ```make
 $(TEST_EXEDIR)/%.exe: chibicc test/%.c test/shared/common.c
-	mkdir -p $(@D)
-	./chibicc -Iinclude -Itest -c -o test/$*.o test/$*.c
-	$(CC) -pthread -o $@ test/$*.o test/shared/common.c
+	mkdir -p $(@D) $(TEST_OBJDIR)
+	./chibicc -Iinclude -Itest -c -o $(TEST_OBJDIR)/$*.o test/$*.c
+	$(CC) -pthread -o $@ $(TEST_OBJDIR)/$*.o test/shared/common.c
 ```
 
 This pattern rule turns each `test/*.c` source into a stage 1 executable under
@@ -96,16 +98,18 @@ exposes that stem as `$*`. For `.make/test/.exe/arith.exe`, `$*` is `arith`.
 The prerequisites force three things to exist or be current before a test is
 linked: the stage 1 compiler, the test source, and `test/shared/common.c`.
 
-The first recipe line creates the output directory named by `$(@D)`, which is
-`.make/test/.exe` for these targets. The next line uses the freshly built
-`./chibicc` to compile the test source into an object file. `-Iinclude -Itest`
-makes repository headers and test headers visible. The output object is
-`test/$*.o`, matching the stem of the executable being built.
+The first recipe line creates both stage 1 test output directories. `$(@D)`
+is `.make/test/.exe` for these targets, and `$(TEST_OBJDIR)` is
+`.make/test/.o`. The next line uses the freshly built `./chibicc` to compile
+the test source into an object file. `-Iinclude -Itest` makes repository
+headers and test headers visible. The output object is
+`$(TEST_OBJDIR)/$*.o`, matching the stem of the executable being built.
 
 The second recipe line uses the host compiler to link the executable. `$@` is
 the final executable path, such as `.make/test/.exe/arith.exe`. The test
-object is linked with `test/shared/common.c`, and `-pthread` supplies the
-thread support needed by tests that exercise threading behavior.
+object, such as `.make/test/.o/arith.o`, is linked with
+`test/shared/common.c`, and `-pthread` supplies the thread support needed by
+tests that exercise threading behavior.
 
 This split is important: the test source is compiled by `chibicc`, but the
 final link is still performed by the host compiler.
@@ -240,10 +244,12 @@ clean:
 the stage 1 compiler, the `.make` build scratch directory, temporary root
 files matching `tmp*`, all discovered stage 1 test executables, stale
 root-adjacent `test/*.exe` outputs, test assembly outputs, and the entire
-`stage2` tree.
+`stage2` tree. Removing `.make` clears host compiler objects, stage 1 test
+objects, and stage 1 test executables.
 
 The second command finds editor backup files and object files below the
-repository root and removes them. The parentheses are quoted so the shell
+repository root and removes them. That cleanup also catches stale `test/*.o`
+files left behind by older builds. The parentheses are quoted so the shell
 passes them to `find` instead of treating them as shell syntax.
 
 ## Phony targets
