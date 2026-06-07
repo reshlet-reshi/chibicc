@@ -4,25 +4,9 @@ set -euo pipefail
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(git -C "$script_dir" rev-parse --show-toplevel)
 
-cd "$repo_root"
+python3 -m mypy \
+  --config-file "$repo_root/mypy.ini" \
+  --cache-dir /tmp/chibicc-mypy-cache \
+  "$script_dir/lint.py"
 
-mapfile -d '' -t shell_files < <(
-  git ls-files -z --cached --others -X "$repo_root/.gitignore" -- '*.sh' '*.sh.inc'
-)
-
-if ((${#shell_files[@]})); then
-  shellcheck -x -s bash "${shell_files[@]}"
-fi
-
-mapfile -d '' -t py_files < <(
-  git ls-files -z --cached --others -X "$repo_root/.gitignore" -- '*.py'
-)
-
-if ((${#py_files[@]})); then
-  python3 -m mypy \
-    --config-file "$repo_root/mypy.ini" \
-    --cache-dir /tmp/chibicc-mypy-cache \
-    "${py_files[@]}"
-fi
-
-"$script_dir/manifest.py"
+exec "$script_dir/lint.py"

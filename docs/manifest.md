@@ -6,7 +6,8 @@
 | `AGENTS.md` | Reviewed | Root policy pointer to the detailed docs agent instructions. |
 | `docs/branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
 | `docs/AGENTS.md` | Reviewed | Agent policy requiring clean commits and passing docs lint. |
-| `docs/lint.sh` | Reviewed | Self-locating Bash wrapper for ShellCheck, strict mypy, and manifest validation. |
+| `docs/lint.py` | Reviewed | Python orchestrator for ShellCheck, strict mypy, and manifest validation. |
+| `docs/lint.sh` | Reviewed | Self-locating Bash bootstrap for type-checking and invoking `docs/lint.py`. |
 | `docs/manifest.ignore.md` | Reviewed | Defines the omission contract for files intentionally left out of this manifest. |
 | `docs/manifest.md` | Reviewed | Positive manifest of tracked files requiring explicit audit/status. |
 | `docs/manifest.py` | Reviewed | Enforces this manifest against the manifest ignore contract. |
