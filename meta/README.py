@@ -55,9 +55,18 @@ def readme_paths(path: Path) -> list[str]:
     return paths
 
 
-def tracked_meta_paths() -> set[str]:
-    paths = git_paths(["ls-files", "meta"])
-    tracked: set[str] = set()
+def visible_meta_paths() -> set[str]:
+    paths = git_paths(
+        [
+            "ls-files",
+            "--cached",
+            "--others",
+            "-X",
+            str(ROOT / ".gitignore"),
+            "meta",
+        ],
+    )
+    visible: set[str] = set()
     has_replica = False
 
     for path in paths:
@@ -69,12 +78,12 @@ def tracked_meta_paths() -> set[str]:
             has_replica = True
             continue
 
-        tracked.add(rel)
+        visible.add(rel)
 
     if has_replica:
-        tracked.add(REPLICA)
+        visible.add(REPLICA)
 
-    return tracked
+    return visible
 
 
 def report(title: str, paths: Sequence[str]) -> None:
@@ -87,23 +96,23 @@ def report(title: str, paths: Sequence[str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Validate meta/README.md against tracked meta/ files",
+        description="Validate meta/README.md against Git-visible meta/ files",
     )
     parser.parse_args()
 
-    tracked = tracked_meta_paths()
+    visible = visible_meta_paths()
     listed = readme_paths(README)
     listed_set = set(listed)
 
-    missing = sorted(tracked - listed_set)
-    unknown = sorted(listed_set - tracked)
+    missing = sorted(visible - listed_set)
+    unknown = sorted(listed_set - visible)
 
     if missing or unknown:
         report("missing from meta README", missing)
         report("listed but not tracked in meta", unknown)
         raise SystemExit(1)
 
-    expected = sorted(tracked, key=readme_sort_key)
+    expected = sorted(visible, key=readme_sort_key)
     if listed != expected:
         report("meta README entries out of order; expected", expected)
         raise SystemExit(1)

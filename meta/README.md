@@ -12,12 +12,14 @@ documentation notes; individual replica files are intentionally not listed here.
 - `README.md`
   - Local manifest for metadata tooling and policy files.
 - `README.py`
-  - Enforces this local metadata manifest against tracked `meta/` files.
+  - Enforces this local metadata manifest against Git-visible `meta/` files.
 - `branches.md`
   - Branch inventory, including local unpushed archive and WIP branches.
+- `branches.py`
+  - Enforces branch manifest entries against local and remote Git refs.
 - `lint.py`
   - Python orchestrator for ShellCheck, strict mypy, meta README validation,
-    and manifest validation.
+    branch manifest validation, and manifest validation.
 - `lint.sh`
   - Self-locating Bash bootstrap for type-checking and invoking `meta/lint.py`.
 - `manifest.md`
