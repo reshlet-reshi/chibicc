@@ -12,16 +12,16 @@ ROOT = META.parent
 MYPY_CACHE = Path("/tmp/chibicc-mypy-cache")
 EXTRA_LINTS = META / "lint.md"
 REPLICA = Path("meta/replica")
+MYPY_CONFIG = Path("mypy.ini")
 ALLOWED_EXTENSIONLESS = {"LICENSE", "Makefile"}
 SHELL_EXTENSIONS = {".sh", ".sh.inc"}
 NOOP_EXTENSIONS = {
     ".c",
     ".gitignore",
     ".h",
-    ".ini",
     ".md",
 }
-RECOGNIZED_EXTENSIONS = NOOP_EXTENSIONS | SHELL_EXTENSIONS | {".py"}
+RECOGNIZED_EXTENSIONS = NOOP_EXTENSIONS | SHELL_EXTENSIONS | {".ini", ".py"}
 
 
 def run(command: Sequence[str]) -> None:
@@ -127,6 +127,10 @@ def unrecognized_files(paths: Sequence[Path]) -> dict[str, list[Path]]:
             findings.setdefault("<extensionless>", []).append(path)
             continue
 
+        if extension == ".ini" and path != MYPY_CONFIG:
+            findings.setdefault("unexpected .ini", []).append(path)
+            continue
+
         if extension not in RECOGNIZED_EXTENSIONS:
             findings.setdefault(extension, []).append(path)
 
@@ -162,6 +166,23 @@ def lint_python(paths: Sequence[Path]) -> None:
     )
 
 
+def lint_mypy_config(path: Path) -> None:
+    run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--config-file",
+            str(path),
+            "--cache-dir",
+            str(MYPY_CACHE),
+            "--warn-unused-configs",
+            "-c",
+            "pass",
+        ],
+    )
+
+
 def lint_shell(path: Path) -> None:
     run(["shellcheck", "-x", "-s", "bash", str(path)])
 
@@ -175,6 +196,8 @@ def lint_file(path: Path, python_paths: list[Path]) -> None:
 
     if extension == ".py":
         python_paths.append(path)
+    elif extension == ".ini":
+        lint_mypy_config(path)
     elif extension in SHELL_EXTENSIONS:
         lint_shell(path)
     else:

@@ -6,6 +6,8 @@ filters to Git-visible files, and dispatches each file by its full basename
 extension. Unrecognized extensions are lint findings; extensionless files are
 allowed only when named `LICENSE` or `Makefile`. Extension dispatch skips
 `meta/replica/`, whose exact file set is validated by `meta/manifest.py`.
+The only allowed `.ini` file is root `mypy.ini`, which is validated by mypy
+itself.
 
 After per-file dispatch succeeds, `lint.py` runs these extra metadata
 validators.
