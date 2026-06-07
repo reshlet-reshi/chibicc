@@ -3,9 +3,8 @@
 Source: `stage.mk`
 
 This file is the reusable build graph for one compiler stage. The top-level
-`Makefile` invokes it recursively and passes variables that describe which
-stage is being built and which compiler command should be used for that
-stage.
+`Makefile` invokes it recursively with the selected stage root, source
+archive, and compiler commands.
 
 ## Required variables
 
@@ -13,33 +12,42 @@ stage.
 ifndef STAGE
 $(error STAGE is required)
 endif
+ifndef SRC_DIST
+$(error SRC_DIST is required)
+endif
+ifndef SRC_DIST_ROOT
+$(error SRC_DIST_ROOT is required)
+endif
+ifndef STAGE_SRCS
+$(error STAGE_SRCS is required)
+endif
+ifndef STAGE_TEST_SRCS
+$(error STAGE_TEST_SRCS is required)
+endif
 ifndef STAGE_CC
 $(error STAGE_CC is required)
 endif
 ifndef STAGE_TEST_CC
 $(error STAGE_TEST_CC is required)
 endif
-ifndef STAGE_OBJ_DEPS
-$(error STAGE_OBJ_DEPS is required)
-endif
 ```
 
-These guards make `stage.mk` fail early if it is invoked without the contract
-expected by the top-level `Makefile`.
+`STAGE` is the output and extracted-source root, such as `.make/stage1`.
+`SRC_DIST` is the absolute source archive path to unpack. `SRC_DIST_ROOT` is
+the wrapped directory name inside the tarball. `STAGE_SRCS` and
+`STAGE_TEST_SRCS` are tracked source lists supplied by the top-level
+`Makefile`. `STAGE_CC` compiles compiler objects. `STAGE_TEST_CC` compiles
+test objects. `STAGE_OBJ_DEPS` is optional and is used by stage 2 to depend
+on the stage 1 compiler.
 
-`STAGE` is the output root, such as `.make/stage1` or `.make/stage2`.
-`STAGE_CC` is the command used to compile compiler objects for this stage.
-`STAGE_TEST_CC` is the command used to compile test objects for this stage.
-`STAGE_OBJ_DEPS` is appended to every compiler-object rule, giving the caller
-a way to express extra dependencies such as `chibicc.h` or the previous stage
-compiler.
-
-## Source discovery and derived paths
+## Source names and stage paths
 
 ```make
-SRCS=$(wildcard *.c)
-TEST_SRCS=$(wildcard test/*.c)
+SRCS=$(STAGE_SRCS)
+TEST_SRCS=$(STAGE_TEST_SRCS)
 
+SRC_READY=$(STAGE)/.src-ready
+UNPACK=$(STAGE).unpack
 CHIBICC=$(STAGE)/chibicc
 OBJDIR=$(STAGE)/.o
 OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
@@ -48,103 +56,93 @@ TEST_EXEDIR=$(STAGE)/test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 ```
 
-`SRCS` discovers top-level compiler sources. `TEST_SRCS` discovers C tests
-under `test/`.
+`SRCS` and `TEST_SRCS` come from the tracked source archive input list rather
+than from working-tree wildcards. They are used only to derive target names.
+The recipes compile and link from the extracted stage source tree.
 
-Every other variable is derived from `STAGE`. `CHIBICC` is the compiler
-binary for this stage. `OBJDIR` is the compiler-object directory, and `OBJS`
-maps each top-level source to an object under that directory. For example,
-with `STAGE=.make/stage2`, `parse.c` becomes `.make/stage2/.o/parse.o`.
+`SRC_READY` is the stamp proving that the source archive has been unpacked
+and flattened into `$(STAGE)`. `UNPACK` is a temporary extraction directory.
+All compiler and test output paths are derived from `$(STAGE)`.
 
-`TEST_OBJDIR` and `TEST_EXEDIR` are the corresponding test object and test
-executable directories. `TESTS` maps `test/*.c` sources into executable paths
-under `$(STAGE)/test/.exe/`.
-
-## Compiler target and link rule
+## Stage preparation
 
 ```make
 compiler: $(CHIBICC)
 
+$(SRC_READY): $(SRC_DIST)
+	@case '$(STAGE)' in .make/*) ;; \
+		*) echo 'refusing to prepare stage outside .make' >&2; exit 1;; \
+	esac
+	rm -rf $(STAGE) $(UNPACK)
+	mkdir -p $(UNPACK)
+	tar -xzf $(SRC_DIST) -C $(UNPACK)
+	mv $(UNPACK)/$(SRC_DIST_ROOT) $(STAGE)
+	rm -rf $(UNPACK)
+	touch $@
+```
+
+`compiler` is the public submake target for building the selected stage
+compiler.
+
+`$(SRC_READY)` depends on the source archive. If the archive is newer than the
+stamp, the stage is rebuilt from a fresh extract. The guard rejects stage
+paths outside `.make/` before running `rm -rf`.
+
+The recipe extracts the wrapped archive into `$(UNPACK)`, moves the unpacked
+`$(SRC_DIST_ROOT)` directory into `$(STAGE)`, removes the temporary unpack
+directory, and touches the stamp. After this rule, `$(STAGE)` contains the
+source files plus any generated outputs added by later rules.
+
+## Compiler build
+
+```make
 $(CHIBICC): $(OBJS)
+	cd $(STAGE) && $(CC) $(CFLAGS) -o chibicc \
+		$(abspath $^) $(LDFLAGS)
+
+$(OBJDIR)/%.o: $(SRC_READY) $(STAGE_OBJ_DEPS)
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	cd $(STAGE) && $(STAGE_CC) -c -o $(abspath $@) $*.c
 ```
 
-`compiler` is the public submake target for building the stage compiler. It
-depends on `$(CHIBICC)`, the actual compiler binary path for the selected
-stage.
+The compiler binary target links all compiler objects. The link command runs
+from inside `$(STAGE)` and writes the stage-local `chibicc` executable.
+`$(abspath $^)` converts object prerequisites to absolute paths, which remain
+valid after changing directories.
 
-The `$(CHIBICC)` rule links all compiler objects. `$(@D)` is the directory
-part of the target, so `mkdir -p $(@D)` creates `.make/stage1` or
-`.make/stage2` before linking. `$@` is the target path. `$^` is the complete
-list of object prerequisites.
+The compiler object rule depends on `$(SRC_READY)`, so objects rebuild after a
+fresh source extract. It also depends on optional `$(STAGE_OBJ_DEPS)`, used by
+stage 2 to rebuild objects when the stage 1 compiler changes.
 
-The link step intentionally uses the host C compiler through `$(CC)`, even
-for stage 2. Stage selection controls which compiler produces the object
-files; the final executable link remains a host linker operation.
+The compile command also runs from inside `$(STAGE)`. `$*.c` is therefore the
+stage-local source file, while `$(abspath $@)` writes the object back to the
+absolute target path.
 
-## Compiler object rule
-
-```make
-$(OBJDIR)/%.o: %.c $(STAGE_OBJ_DEPS)
-	mkdir -p $(@D)
-	$(STAGE_CC) -c -o $@ $<
-```
-
-This pattern rule builds one compiler object. The target pattern is
-`$(OBJDIR)/%.o`, so `parse.c` maps to `.make/stage1/.o/parse.o` for stage 1
-or `.make/stage2/.o/parse.o` for stage 2.
-
-`$(@D)` is the output directory for the object file. `$@` is the object path
-to write. `$<` is the first prerequisite, which is the matching source file.
-The extra prerequisites from `$(STAGE_OBJ_DEPS)` are dependencies only; they
-do not replace `$<`.
-
-`$(STAGE_CC)` is supplied by the top-level `Makefile`. For stage 1 it expands
-to the host compiler plus `$(CFLAGS)`. For stage 2 it expands to the stage 1
-compiler plus `-Iinclude`.
-
-## Test executable rule
+## Test build and run
 
 ```make
-$(TEST_EXEDIR)/%.exe: $(CHIBICC) test/%.c test/shared/common.c
+$(TEST_EXEDIR)/%.exe: $(CHIBICC) $(SRC_READY)
 	mkdir -p $(@D) $(TEST_OBJDIR)
-	$(STAGE_TEST_CC) -c -o $(TEST_OBJDIR)/$*.o test/$*.c
-	$(CC) -pthread -o $@ $(TEST_OBJDIR)/$*.o test/shared/common.c
-```
+	cd $(STAGE) && \
+		$(STAGE_TEST_CC) -c -o test/.o/$*.o test/$*.c
+	cd $(STAGE) && \
+		$(CC) -pthread -o test/.exe/$*.exe \
+		test/.o/$*.o test/shared/common.c
 
-This rule turns one `test/*.c` source into one executable under the selected
-stage's test executable directory. The `%` stem is exposed as `$*`. For
-`.make/stage2/test/.exe/arith.exe`, `$*` is `arith`.
-
-The prerequisites require the stage compiler, the matching test source, and
-`test/shared/common.c`. The first recipe line creates both the executable
-directory and the object directory.
-
-`$(STAGE_TEST_CC)` compiles the test source into `$(TEST_OBJDIR)/$*.o`. Stage
-1 receives the stage 1 compiler command; stage 2 receives the stage 2 compiler
-command. The link step then uses the host C compiler with `-pthread` to write
-`$@`, the final executable path.
-
-## Test target
-
-```make
 test: $(TESTS)
-	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
-	test/driver.sh ./$(CHIBICC)
+	cd $(STAGE) && \
+		for i in test/.exe/*.exe; do echo $$i; ./$$i || exit 1; echo; done
+	cd $(STAGE) && test/driver.sh ./chibicc
 ```
 
-`test` depends on every discovered test executable for the selected stage, so
-the submake builds the complete stage test suite before running it.
+Each test executable depends on the stage compiler and the source-ready stamp.
+The compile step uses `$(STAGE_TEST_CC)` from inside the stage source tree and
+writes the object under `test/.o/`. The link step writes the executable under
+`test/.exe/` with the host compiler and `-pthread`.
 
-Inside the loop, `$^` expands to the list of test executables. The shell
-variable is written as `$$i` because Make consumes single-dollar variables
-before the shell sees the command. Each executable is printed, run, and allowed
-to stop the loop with `exit 1` on failure.
-
-After the compiled tests pass, `test/driver.sh` runs against the compiler
-binary for the selected stage. That shell driver covers command-line behavior
-that is easier to express outside the C test binaries.
+The `test` target depends on all discovered test executables, then changes
+into the stage directory to run them. The shell driver also runs from inside
+the stage and receives `./chibicc`, the compiler binary for that same stage.
 
 ## Phony targets
 
@@ -153,5 +151,4 @@ that is easier to express outside the C test binaries.
 ```
 
 `compiler` and `test` are command targets exported by `stage.mk`; they are not
-files that should be checked on disk. Marking them phony keeps recursive make
-calls direct and predictable.
+files to check on disk.

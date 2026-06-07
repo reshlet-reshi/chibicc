@@ -2,13 +2,11 @@
 
 Source: `Makefile`
 
-This file is the top-level build and test entrypoint. It is deliberately thin:
-it defines the global host compiler flags, names the two build stages, and
-invokes `stage.mk` recursively with stage-specific variables. The repeated
-rules for compiler objects, compiler binaries, test objects, test
-executables, and test loops live in `stage.mk`.
+This file is the top-level build, test, and source-distribution entrypoint. It
+keeps repository-level policy in one place, then delegates the repeated
+per-stage build graph to `stage.mk`.
 
-## Global flags and stage roots
+## Global flags, stage paths, and source archive
 
 ```make
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
@@ -18,86 +16,91 @@ STAGE1=.make/stage1
 STAGE2=.make/stage2
 CHIBICC=$(STAGE1)/chibicc
 STAGE2_CHIBICC=$(STAGE2)/chibicc
+DEFAULT_SRC_DIST=.make/chibicc.tar.gz
+SRC_DIST?=$(DEFAULT_SRC_DIST)
+SRC_DIST_ROOT=chibicc
+SRC_DIST_LIST=.make/src-dist.files
+SRC_DIST_INPUTS=$(shell git ls-files -- . ':!meta' ':!.gitignore')
+ROOT_SRC_INPUTS=$(foreach path,$(SRC_DIST_INPUTS),\
+	$(if $(findstring /,$(path)),,$(path)))
+TEST_SRC_INPUTS=$(foreach path,$(SRC_DIST_INPUTS),\
+	$(if $(filter test/%,$(path)),\
+		$(if $(findstring /,$(patsubst test/%,%,$(path))),,$(path))))
+STAGE_SRCS=$(filter %.c,$(ROOT_SRC_INPUTS))
+STAGE_TEST_SRCS=$(filter %.c,$(TEST_SRC_INPUTS))
 ```
 
-`CFLAGS` is the shared flag set used when the host C compiler builds or links
-compiler binaries. It requests C11, debug information, non-common global
-definitions, and most warnings while suppressing switch warnings. `-Werror`
-then promotes the remaining host compiler warnings to build failures.
-`export CFLAGS` puts that default flag set into the submake environment, so
-`stage.mk` sees the same link flags that the top-level file defines.
+`CFLAGS` is the shared host compiler flag set. It requests C11, debug
+information, non-common global definitions, and most warnings while
+suppressing switch warnings. `-Werror` promotes the remaining host compiler
+warnings to build failures. `export CFLAGS` makes that default visible to
+recursive `stage.mk` invocations.
 
-`STAGE1` and `STAGE2` are the private scratch roots for generated build
-artifacts. Stage 1 is the host-built compiler and its tests. Stage 2 is the
-self-hosted compiler and its tests. Both roots are under `.make/`, which is
-ignored and removed by `make clean`.
+`STAGE1` and `STAGE2` are the private stage roots under `.make/`. Each stage
+now contains both an extracted source tree and generated outputs. `CHIBICC`
+and `STAGE2_CHIBICC` name the compiler binary in each stage.
 
-`CHIBICC` and `STAGE2_CHIBICC` name the compiler binary in each stage. They
-are path variables used by both the top-level proxy targets and the recursive
-`stage.mk` invocations.
+`DEFAULT_SRC_DIST` is the archive path used by stage builds. `SRC_DIST` is the
+public archive path for `make src-dist`; `?=` keeps it overridable for that
+command while defaulting to `DEFAULT_SRC_DIST`. `SRC_DIST_ROOT` is the
+directory prefix used inside the tarball. `SRC_DIST_LIST` is the private,
+nul-delimited file list used while building the archive.
 
-## Stage 1 compiler proxy
+`SRC_DIST_INPUTS` is a Make-time snapshot of tracked source paths outside
+`meta/` and excluding `.gitignore`. The archive target depends on those paths,
+so normal Make timestamp checks decide when `.make/chibicc.tar.gz` is stale.
+
+`ROOT_SRC_INPUTS` keeps tracked root-level paths by discarding anything with a
+slash. `TEST_SRC_INPUTS` keeps tracked direct `test/` children by discarding
+anything with another slash after `test/`.
+
+`STAGE_SRCS` and `STAGE_TEST_SRCS` then narrow those lists to C files.
+Root-level C files become compiler sources. Direct `test/*.c` files become
+test programs, while nested helpers such as `test/shared/common.c` stay in
+the archive but are not treated as standalone tests.
+
+## Stage 1 proxies
 
 ```make
 # Stage 1
 
-$(CHIBICC): FORCE
+$(CHIBICC): $(DEFAULT_SRC_DIST)
 	$(MAKE) -f stage.mk STAGE=$(STAGE1) \
+		SRC_DIST=$(abspath $(DEFAULT_SRC_DIST)) \
+		SRC_DIST_ROOT=$(SRC_DIST_ROOT) \
+		'STAGE_SRCS=$(STAGE_SRCS)' \
+		'STAGE_TEST_SRCS=$(STAGE_TEST_SRCS)' \
 		'STAGE_CC=$(CC) $(CFLAGS)' \
-		'STAGE_TEST_CC=./$(CHIBICC) -Iinclude -Itest' \
-		STAGE_OBJ_DEPS=chibicc.h \
+		'STAGE_TEST_CC=./chibicc -Iinclude -Itest' \
 		compiler
-```
 
-This is the first real target in the file, so plain `make` builds the stage 1
-compiler at `.make/stage1/chibicc`.
-
-The target depends on `FORCE`, which is an empty phony-style target near the
-bottom of the file. That makes top-level Make enter the recursive make every
-time this target is requested. The submake then decides whether the real
-stage 1 files are stale.
-
-`$(MAKE)` is the recursive-make command. GNU Make gives it special handling,
-so command-line flags and jobserver settings are passed through correctly.
-`-f stage.mk` tells the submake to use the reusable stage build graph instead
-of the top-level orchestration file.
-
-The variable assignments after `-f stage.mk` configure one stage:
-
-- `STAGE=$(STAGE1)` tells `stage.mk` to place all outputs under
-  `.make/stage1`.
-- `STAGE_CC=$(CC) $(CFLAGS)` says compiler objects for this stage are built
-  by the host C compiler.
-- `STAGE_TEST_CC=./$(CHIBICC) -Iinclude -Itest` says test objects for this
-  stage are compiled by the just-built stage 1 compiler.
-- `STAGE_OBJ_DEPS=chibicc.h` makes every compiler object depend on the shared
-  compiler header.
-
-The `STAGE_CC` and `STAGE_TEST_CC` assignments are shell-quoted because their
-values contain spaces. After the shell removes those quotes, the submake sees
-single variable assignments with multi-word compiler commands.
-
-The final word, `compiler`, is the target requested from `stage.mk`.
-
-## Stage 1 test proxy
-
-```make
-test: FORCE
+test: $(DEFAULT_SRC_DIST)
 	$(MAKE) -f stage.mk STAGE=$(STAGE1) \
+		SRC_DIST=$(abspath $(DEFAULT_SRC_DIST)) \
+		SRC_DIST_ROOT=$(SRC_DIST_ROOT) \
+		'STAGE_SRCS=$(STAGE_SRCS)' \
+		'STAGE_TEST_SRCS=$(STAGE_TEST_SRCS)' \
 		'STAGE_CC=$(CC) $(CFLAGS)' \
-		'STAGE_TEST_CC=./$(CHIBICC) -Iinclude -Itest' \
-		STAGE_OBJ_DEPS=chibicc.h \
+		'STAGE_TEST_CC=./chibicc -Iinclude -Itest' \
 		test
 ```
 
-`test` uses the same stage 1 variable set as the compiler proxy but asks
-`stage.mk` for its `test` target. The submake builds
-`.make/stage1/chibicc`, compiles the stage 1 test objects under
-`.make/stage1/test/.o/`, links test executables under
-`.make/stage1/test/.exe/`, runs those executables, and then runs
-`test/driver.sh ./.make/stage1/chibicc`.
+The first real target is `$(CHIBICC)`, so plain `make` builds the stage 1
+compiler. It depends on `$(DEFAULT_SRC_DIST)`, the real source archive used by
+stage builds. When the archive is missing or older than a tracked source
+input, Make rebuilds the archive before entering the stage submake.
 
-The top-level target is phony because it is a command, not a file artifact.
+Both recipes call `$(MAKE) -f stage.mk`. `$(MAKE)` preserves Make flags and
+jobserver settings across recursion. The submake receives the stage root, the
+absolute archive path, the tarball root name, the tracked source lists, and
+the compiler commands for that stage.
+
+`STAGE_CC=$(CC) $(CFLAGS)` means stage 1 compiler objects are built with the
+host C compiler. `STAGE_TEST_CC=./chibicc -Iinclude -Itest` is stage-local
+because `stage.mk` runs the recipe from inside `.make/stage1`.
+
+The top-level `test` target is phony, so asking for `make test` always enters
+the submake. The submake still decides which stage files are stale.
 
 ## Combined test target
 
@@ -105,99 +108,99 @@ The top-level target is phony because it is a command, not a file artifact.
 test-all: test test-stage2
 ```
 
-`test-all` is an aggregate target. It has no recipe of its own; it succeeds
-when both `test` and `test-stage2` succeed. Unlike the old layout, this target
-is now listed in `.PHONY`, so it cannot be shadowed by a real file named
-`test-all`.
+`test-all` is an aggregate command target. It succeeds when both stage 1 and
+stage 2 tests succeed.
 
-## Stage 2 compiler proxy
+## Stage 2 proxies
 
 ```make
 # Stage 2
 
-$(STAGE2_CHIBICC): $(CHIBICC) FORCE
+$(STAGE2_CHIBICC): $(CHIBICC) $(DEFAULT_SRC_DIST)
 	$(MAKE) -f stage.mk STAGE=$(STAGE2) \
-		'STAGE_CC=./$(CHIBICC) -Iinclude' \
-		'STAGE_TEST_CC=./$(STAGE2_CHIBICC) -Iinclude -Itest' \
-		STAGE_OBJ_DEPS=$(CHIBICC) \
+		SRC_DIST=$(abspath $(DEFAULT_SRC_DIST)) \
+		SRC_DIST_ROOT=$(SRC_DIST_ROOT) \
+		'STAGE_SRCS=$(STAGE_SRCS)' \
+		'STAGE_TEST_SRCS=$(STAGE_TEST_SRCS)' \
+		'STAGE_CC=$(abspath $(CHIBICC)) -Iinclude' \
+		'STAGE_TEST_CC=./chibicc -Iinclude -Itest' \
+		STAGE_OBJ_DEPS=$(abspath $(CHIBICC)) \
 		compiler
-```
 
-This proxy builds the self-hosted compiler at `.make/stage2/chibicc`. It has
-an explicit top-level prerequisite on `$(CHIBICC)`, so stage 1 is available
-before stage 2 starts.
-
-The recursive call again uses `stage.mk`, but with a different stage root and
-different compiler commands:
-
-- `STAGE=$(STAGE2)` routes all outputs under `.make/stage2`.
-- `STAGE_CC=./$(CHIBICC) -Iinclude` builds compiler objects with the stage 1
-  compiler.
-- `STAGE_TEST_CC=./$(STAGE2_CHIBICC) -Iinclude -Itest` prepares the stage 2
-  compiler to build stage 2 test objects.
-- `STAGE_OBJ_DEPS=$(CHIBICC)` makes compiler objects depend on the stage 1
-  compiler binary, so they rebuild when the compiler used to produce them is
-  rebuilt.
-
-The stage 2 compiler binary is still linked by the host C compiler inside
-`stage.mk`; the self-hosting check is about which compiler produces the object
-files.
-
-## Stage 2 test proxy
-
-```make
-test-stage2: $(CHIBICC) FORCE
+test-stage2: $(CHIBICC) $(DEFAULT_SRC_DIST)
 	$(MAKE) -f stage.mk STAGE=$(STAGE2) \
-		'STAGE_CC=./$(CHIBICC) -Iinclude' \
-		'STAGE_TEST_CC=./$(STAGE2_CHIBICC) -Iinclude -Itest' \
-		STAGE_OBJ_DEPS=$(CHIBICC) \
+		SRC_DIST=$(abspath $(DEFAULT_SRC_DIST)) \
+		SRC_DIST_ROOT=$(SRC_DIST_ROOT) \
+		'STAGE_SRCS=$(STAGE_SRCS)' \
+		'STAGE_TEST_SRCS=$(STAGE_TEST_SRCS)' \
+		'STAGE_CC=$(abspath $(CHIBICC)) -Iinclude' \
+		'STAGE_TEST_CC=./chibicc -Iinclude -Itest' \
+		STAGE_OBJ_DEPS=$(abspath $(CHIBICC)) \
 		test
 ```
 
-`test-stage2` asks `stage.mk` to run the full test target for stage 2. The
-stage 2 submake builds `.make/stage2/chibicc`, compiles stage 2 test objects
-under `.make/stage2/test/.o/`, links test executables under
-`.make/stage2/test/.exe/`, runs those executables, and then runs
-`test/driver.sh ./.make/stage2/chibicc`.
+Stage 2 depends on both the source archive and the stage 1 compiler. The
+archive supplies the source tree that will be unpacked into `.make/stage2`.
+The stage 1 compiler supplies the compiler used to produce stage 2 compiler
+objects.
 
-The top-level prerequisite on `$(CHIBICC)` keeps the stage 1 compiler build
-ordered before the stage 2 submake. The stage 2 submake still owns the exact
-file-level dependency graph for stage 2 artifacts.
+`STAGE_CC` is absolute because stage 2 recipes run from inside
+`.make/stage2`, not the repository root. `-Iinclude` is intentionally
+stage-local, so the stage 1 compiler reads headers from the extracted stage 2
+source tree. `STAGE_OBJ_DEPS` makes stage 2 compiler objects stale when the
+stage 1 compiler changes.
 
-## Cleanup
+`STAGE_TEST_CC=./chibicc -Iinclude -Itest` uses the stage 2 compiler from
+inside `.make/stage2` to compile the stage 2 test objects.
+
+## Source distribution and cleanup
 
 ```make
 # Misc.
+
+src-dist: $(SRC_DIST)
+
+$(DEFAULT_SRC_DIST): $(SRC_DIST_INPUTS)
+	mkdir -p $(dir $@) .make
+	git ls-files -z -- . ':!meta' ':!.gitignore' > $(SRC_DIST_LIST)
+	tar --null -T $(SRC_DIST_LIST) \
+		--transform='s,^,$(SRC_DIST_ROOT)/,' \
+		-czf $@
+
+ifneq ($(SRC_DIST),$(DEFAULT_SRC_DIST))
+$(SRC_DIST): $(SRC_DIST_INPUTS)
+	mkdir -p $(dir $@) .make
+	git ls-files -z -- . ':!meta' ':!.gitignore' > $(SRC_DIST_LIST)
+	tar --null -T $(SRC_DIST_LIST) \
+		--transform='s,^,$(SRC_DIST_ROOT)/,' \
+		-czf $@
+endif
 
 clean:
 	rm -rf chibicc .make tmp* test/*.s test/*.exe stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 ```
 
-`clean` removes generated build and test outputs. The first command deletes
-any stale root `chibicc`, the `.make` build scratch directory, temporary root
-files matching `tmp*`, stale root-adjacent `test/*.exe` outputs, test
-assembly outputs, and the stale root `stage2` tree from older layouts.
-Removing `.make` clears the current stage 1 and stage 2 compiler binaries,
-compiler objects, test objects, and test executables.
+`src-dist` is the public command target. It depends on `$(SRC_DIST)`, so
+callers can override the archive path for that command. Stage builds still use
+`$(DEFAULT_SRC_DIST)`.
 
-The second command finds editor backup files and object files below the
-repository root and removes them. That cleanup catches stale object files left
-behind by older layouts. The parentheses are quoted so the shell passes them
-to `find` instead of treating them as shell syntax.
+The archive recipe creates the output directory and `.make/`, writes the
+tracked source list to `$(SRC_DIST_LIST)`, and feeds that nul-delimited list
+to GNU tar. `--transform` prefixes every archive member with
+`$(SRC_DIST_ROOT)/`, so extracting the tarball creates a wrapping `chibicc/`
+directory.
 
-## Forced and phony targets
+`clean` removes generated build and test outputs, including the source
+archive and extracted stage trees under `.make/`. It also removes stale root
+outputs from older layouts.
+
+## Phony targets
 
 ```make
-FORCE:
-
-.PHONY: test clean test-stage2 test-all FORCE
+.PHONY: test clean test-stage2 test-all src-dist
 ```
 
-`FORCE` has no prerequisites and no recipe. Because the file named `FORCE`
-does not exist, any target that depends on it is considered out of date, which
-forces the proxy recipe to enter the submake.
-
-`.PHONY` marks command targets as commands instead of files. It also marks
-`FORCE` as phony so the forcing behavior remains explicit even if a file named
-`FORCE` appears in the repository root.
+Only command targets are phony. File targets such as `$(SRC_DIST)`,
+`$(CHIBICC)`, and `$(STAGE2_CHIBICC)` are left as real targets so normal Make
+timestamp checks can decide whether they are stale.
