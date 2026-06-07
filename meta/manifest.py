@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import re
 import subprocess
 import sys
 import tempfile
@@ -11,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "meta" / "manifest.md"
 REPLICA = "meta/replica"
-MANIFEST_ITEM = re.compile(r"^- `([^`]+)`$")
+MANIFEST_ITEM_HELP = "- [`path`](replica/path.md)"
 
 
 def git(args: Sequence[str]) -> bytes:
@@ -64,32 +63,29 @@ def extract_gitignore_block(path: Path) -> str:
 def manifest_paths(path: Path) -> set[str]:
     lines = path.read_text().splitlines()
     paths: list[str] = []
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        match = MANIFEST_ITEM.match(line)
-        if match is None:
-            i += 1
-            continue
-
-        source = match.group(1)
-        line_number = i + 1
-        replica_bullet = f"  - [{replica_doc_path(source)}](replica/{source}.md)"
-        replica_line_number = i + 2
-        if replica_line_number > len(lines) or lines[i + 1] != replica_bullet:
+    for line_number, line in enumerate(lines, start=1):
+        if line.startswith("  - "):
             raise SystemExit(
-                f"{path}:{line_number}: expected replica bullet on next line: "
-                f"{replica_bullet}",
+                f"{path}:{line_number}: unexpected nested manifest bullet",
             )
 
-        after_item = i + 2
-        if after_item < len(lines) and lines[after_item].startswith("  - "):
+        item = manifest_item(line)
+        if item is None:
+            if line.startswith("- "):
+                raise SystemExit(
+                    f"{path}:{line_number}: expected {MANIFEST_ITEM_HELP}",
+                )
+            continue
+
+        source, target = item
+        expected_target = f"replica/{source}.md"
+        if target != expected_target:
             raise SystemExit(
-                f"{path}:{after_item + 1}: expected one replica bullet per path",
+                f"{path}:{line_number}: expected replica link target "
+                f"{expected_target}",
             )
 
         paths.append(source)
-        i = after_item
 
     duplicates = sorted({p for p in paths if paths.count(p) > 1})
     if duplicates:
@@ -97,6 +93,26 @@ def manifest_paths(path: Path) -> set[str]:
         raise SystemExit(1)
 
     return set(paths)
+
+
+def manifest_item(line: str) -> tuple[str, str] | None:
+    prefix = "- [`"
+    separator = "`]("
+    suffix = ")"
+    if not line.startswith(prefix) or not line.endswith(suffix):
+        return None
+
+    value = line.removeprefix(prefix).removesuffix(suffix)
+    separator_index = value.find(separator)
+    if separator_index == -1:
+        return None
+
+    source = value[:separator_index]
+    target = value[separator_index + len(separator) :]
+    if not source or not target or "`" in source:
+        return None
+
+    return source, target
 
 
 def ignored_by_manifest(patterns: str) -> set[str]:
