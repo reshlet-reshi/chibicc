@@ -12,6 +12,8 @@ finally repeats the same idea for a stage 2 compiler built by stage 1.
 ```make
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
 
+CHIBICC=.make/chibicc
+
 SRCS=$(wildcard *.c)
 OBJDIR=.make/.o
 OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
@@ -25,10 +27,14 @@ STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
 ```
 
 `CFLAGS` is the shared compile/link flag set used when the host compiler
-links `chibicc` executables. It requests C11, debug information, non-common
+links compiler executables. It requests C11, debug information, non-common
 global definitions, and most warnings while suppressing switch warnings.
 `-Werror` then promotes any remaining host compiler warning to a build
 failure.
+
+`CHIBICC` names the private stage 1 compiler output path. The compiler built
+by the host C compiler lives at `.make/chibicc` instead of in the repository
+root.
 
 `SRCS` is computed with GNU Make's `wildcard` function. It expands to every
 top-level `.c` source file in the repository root.
@@ -55,7 +61,8 @@ therefore enough to include it in the appropriate build graph.
 ```make
 # Stage 1
 
-chibicc: $(OBJS)
+$(CHIBICC): $(OBJS)
+	mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(OBJDIR)/%.o: %.c chibicc.h
@@ -63,14 +70,15 @@ $(OBJDIR)/%.o: %.c chibicc.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 ```
 
-The first real target is `chibicc`, so plain `make` builds the stage 1
-compiler. Its prerequisites are all objects in `$(OBJS)`, which now live under
-`.make/.o/`.
+The first real target is `$(CHIBICC)`, so plain `make` builds the stage 1
+compiler at `.make/chibicc`. Its prerequisites are all objects in `$(OBJS)`,
+which now live under `.make/.o/`.
 
-The recipe links the executable. `$@` is the current target name, so here it
-is `chibicc`. `$^` is the full prerequisite list, so it expands to the object
-files. `$(LDFLAGS)` is left open for callers or the environment to supply
-extra linker flags.
+The recipe links the executable. `$(@D)` is the directory part of the target,
+so the first recipe line creates `.make` before linking. `$@` is the current
+target name, so here it is `.make/chibicc`. `$^` is the full prerequisite
+list, so it expands to the object files. `$(LDFLAGS)` is left open for callers
+or the environment to supply extra linker flags.
 
 The pattern rule builds each host compiler object. For `parse.c`, the target
 is `.make/.o/parse.o`; `$(@D)` is `.make/.o`, so the first recipe line creates
@@ -79,14 +87,14 @@ matching source file, and `$@` is the object path to write.
 
 The rule also lists `chibicc.h` as a prerequisite. If the shared header
 changes, Make considers all compiler objects stale and rebuilds them before
-relinking `chibicc`.
+relinking `.make/chibicc`.
 
 ## Stage 1 test executables
 
 ```make
-$(TEST_EXEDIR)/%.exe: chibicc test/%.c test/shared/common.c
+$(TEST_EXEDIR)/%.exe: $(CHIBICC) test/%.c test/shared/common.c
 	mkdir -p $(@D) $(TEST_OBJDIR)
-	./chibicc -Iinclude -Itest -c -o $(TEST_OBJDIR)/$*.o test/$*.c
+	./$(CHIBICC) -Iinclude -Itest -c -o $(TEST_OBJDIR)/$*.o test/$*.c
 	$(CC) -pthread -o $@ $(TEST_OBJDIR)/$*.o test/shared/common.c
 ```
 
@@ -100,9 +108,9 @@ linked: the stage 1 compiler, the test source, and `test/shared/common.c`.
 
 The first recipe line creates both stage 1 test output directories. `$(@D)`
 is `.make/test/.exe` for these targets, and `$(TEST_OBJDIR)` is
-`.make/test/.o`. The next line uses the freshly built `./chibicc` to compile
-the test source into an object file. `-Iinclude -Itest` makes repository
-headers and test headers visible. The output object is
+`.make/test/.o`. The next line uses the freshly built `./$(CHIBICC)` to
+compile the test source into an object file. `-Iinclude -Itest` makes
+repository headers and test headers visible. The output object is
 `$(TEST_OBJDIR)/$*.o`, matching the stem of the executable being built.
 
 The second recipe line uses the host compiler to link the executable. `$@` is
@@ -111,15 +119,15 @@ object, such as `.make/test/.o/arith.o`, is linked with
 `test/shared/common.c`, and `-pthread` supplies the thread support needed by
 tests that exercise threading behavior.
 
-This split is important: the test source is compiled by `chibicc`, but the
-final link is still performed by the host compiler.
+This split is important: the test source is compiled by the stage 1 compiler,
+but the final link is still performed by the host compiler.
 
 ## Stage 1 test target
 
 ```make
 test: $(TESTS)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
-	test/driver.sh ./chibicc
+	test/driver.sh ./$(CHIBICC)
 ```
 
 The `test` target depends on every executable in `$(TESTS)`, so Make builds
@@ -130,9 +138,9 @@ variable needs to be written as `$$i` because a single `$` belongs to Make;
 doubling it passes a literal `$i` through to the shell. Each executable is
 printed, run, and allowed to stop the loop with `exit 1` on failure.
 
-After the compiled C tests pass, the target runs `test/driver.sh ./chibicc`.
-That driver script exercises command-line behavior that is easier to check
-from shell than from the C test binaries.
+After the compiled C tests pass, the target runs
+`test/driver.sh ./$(CHIBICC)`. That driver script exercises command-line
+behavior that is easier to check from shell than from the C test binaries.
 
 ## Combined test target
 
@@ -171,13 +179,13 @@ is the full list of `stage2/*.o` prerequisites.
 ## Stage 2 objects
 
 ```make
-stage2/%.o: chibicc %.c
+stage2/%.o: $(CHIBICC) %.c
 	mkdir -p stage2/test
-	./chibicc -c -o $(@D)/$*.o $*.c
+	./$(CHIBICC) -Iinclude -c -o $(@D)/$*.o $*.c
 ```
 
 This pattern rule builds stage 2 object files by compiling top-level compiler
-sources with the stage 1 `chibicc`.
+sources with the stage 1 compiler at `$(CHIBICC)`.
 
 The target pattern is `stage2/%.o`, so `$*` is the source stem. For
 `stage2/parse.o`, `$*` is `parse`. The prerequisite `%.c` then resolves to
@@ -186,7 +194,9 @@ The target pattern is `stage2/%.o`, so `$*` is the source stem. For
 `mkdir -p stage2/test` creates the stage 2 output directory tree before the
 object is written. `$(@D)` is the directory part of the target path; for
 `stage2/parse.o`, it is `stage2`. The compile command therefore writes
-`stage2/parse.o` from `parse.c`.
+`stage2/parse.o` from `parse.c` using `./$(CHIBICC)`. The explicit
+`-Iinclude` keeps the repository's compiler-private headers visible now that
+the stage 1 compiler executable lives under `.make/`.
 
 The directory creation includes `stage2/test` even for compiler objects
 because later stage 2 test rules need that directory as well.
@@ -241,11 +251,11 @@ clean:
 ```
 
 `clean` removes generated build and test outputs. The first command deletes
-the stage 1 compiler, the `.make` build scratch directory, temporary root
+any stale root `chibicc`, the `.make` build scratch directory, temporary root
 files matching `tmp*`, all discovered stage 1 test executables, stale
 root-adjacent `test/*.exe` outputs, test assembly outputs, and the entire
-`stage2` tree. Removing `.make` clears host compiler objects, stage 1 test
-objects, and stage 1 test executables.
+`stage2` tree. Removing `.make` clears the current stage 1 compiler, host
+compiler objects, stage 1 test objects, and stage 1 test executables.
 
 The second command finds editor backup files and object files below the
 repository root and removes them. That cleanup also catches stale `test/*.o`

@@ -1,5 +1,7 @@
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
 
+CHIBICC=.make/chibicc
+
 SRCS=$(wildcard *.c)
 OBJDIR=.make/.o
 OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
@@ -13,21 +15,22 @@ STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
 
 # Stage 1
 
-chibicc: $(OBJS)
+$(CHIBICC): $(OBJS)
+	mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(OBJDIR)/%.o: %.c chibicc.h
 	mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(TEST_EXEDIR)/%.exe: chibicc test/%.c test/shared/common.c
+$(TEST_EXEDIR)/%.exe: $(CHIBICC) test/%.c test/shared/common.c
 	mkdir -p $(@D) $(TEST_OBJDIR)
-	./chibicc -Iinclude -Itest -c -o $(TEST_OBJDIR)/$*.o test/$*.c
+	./$(CHIBICC) -Iinclude -Itest -c -o $(TEST_OBJDIR)/$*.o test/$*.c
 	$(CC) -pthread -o $@ $(TEST_OBJDIR)/$*.o test/shared/common.c
 
 test: $(TESTS)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
-	test/driver.sh ./chibicc
+	test/driver.sh ./$(CHIBICC)
 
 test-all: test test-stage2
 
@@ -36,9 +39,9 @@ test-all: test test-stage2
 stage2/chibicc: $(STAGE2_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-stage2/%.o: chibicc %.c
+stage2/%.o: $(CHIBICC) %.c
 	mkdir -p stage2/test
-	./chibicc -c -o $(@D)/$*.o $*.c
+	./$(CHIBICC) -Iinclude -c -o $(@D)/$*.o $*.c
 
 stage2/test/%.exe: stage2/chibicc test/%.c test/shared/common.c
 	mkdir -p stage2/test
