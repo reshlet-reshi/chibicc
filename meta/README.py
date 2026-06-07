@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 META = ROOT / "meta"
 README = META / "README.md"
+REPLICA = "replica/"
 
 
 def git(args: Sequence[str]) -> bytes:
@@ -52,7 +53,24 @@ def readme_paths(path: Path) -> set[str]:
 
 def tracked_meta_paths() -> set[str]:
     paths = git_paths(["ls-files", "meta"])
-    return {path.removeprefix("meta/") for path in paths if path.startswith("meta/")}
+    tracked: set[str] = set()
+    has_replica = False
+
+    for path in paths:
+        if not path.startswith("meta/"):
+            continue
+
+        rel = path.removeprefix("meta/")
+        if rel.startswith(REPLICA):
+            has_replica = True
+            continue
+
+        tracked.add(rel)
+
+    if has_replica:
+        tracked.add(REPLICA)
+
+    return tracked
 
 
 def report(title: str, paths: Sequence[str]) -> None:

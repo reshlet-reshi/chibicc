@@ -1,5 +1,10 @@
 # Metadata Directory
 
+`replica/` contains one Markdown file for each path listed in
+`meta/manifest.md`. Those files mirror repository paths and hold per-file
+documentation and status notes; individual replica files are intentionally not
+listed here.
+
 | File | Status | Notes |
 | --- | --- | --- |
 | `AGENTS.md` | Reviewed | Agent policy requiring clean commits, passing meta lint, and keeping this README current. |
@@ -10,3 +15,4 @@
 | `manifest.md` | Reviewed | Positive manifest of tracked repository files outside `meta/` and its omission contract. |
 | `manifest.py` | Reviewed | Enforces the repository manifest against its embedded omission contract. |
 | `README.py` | Reviewed | Enforces this local metadata manifest against tracked `meta/` files. |
+| `replica/` | Reviewed | Per-file documentation subtree for paths listed in `meta/manifest.md`. |

@@ -1,7 +1,8 @@
 # Repository File Manifest
 
-This file lists tracked files outside `meta/` that require explicit
-audit/status. It also defines the only allowed omissions from that manifest.
+This file indexes tracked files outside `meta/` that require explicit
+audit/status documentation. It also defines the only allowed omissions from
+that manifest.
 
 The `meta/` directory is omitted because it maintains its own local manifest in
 `meta/README.md`. The repository manifest intentionally focuses on tracked
@@ -13,6 +14,11 @@ The fenced block below is real gitignore syntax interpreted relative to the
 repository root. Manifest tooling must also honor the repo-root `.gitignore`;
 that delegation is part of this contract and is declared here.
 
+Each listed file links to matching per-file documentation under
+`meta/replica/`, preserving its repository-relative path and adding `.md`.
+Status and notes live in those replica docs. For example, `.gitignore` is
+documented at `meta/replica/.gitignore.md`.
+
 ```gitignore
 # Repository metadata maintains its own local manifest in meta/README.md
 meta/
@@ -22,19 +28,19 @@ meta/
 *.h
 ```
 
-| File | Status | Notes |
-| --- | --- | --- |
-| `.gitignore` | OK | Ignores build/test outputs, Python bytecode caches, local temporaries, and third-party checkout state. |
-| `AGENTS.md` | Reviewed | Root policy pointer to the detailed meta agent instructions. |
-| `LICENSE` | OK | MIT license text. |
-| `Makefile` | Needs cleanup | Core build/test entrypoint; `test-all` should be added to `.PHONY`. |
-| `mypy.ini` | Reviewed | Very strict explicit mypy configuration for repository Python lint. |
-| `README.md` | OK | Upstream project overview and design notes. |
-| `reset.sh` | Reviewed | Destructive reset helper with confirmation prompt and repo-directory anchoring. |
-| `test/driver.sh` | Reviewed | Driver tests are covered by ShellCheck and regression test targets. |
-| `test/thirdparty/common.sh.inc` | Needs fix | Checkout helper should validate standalone Git checkouts before destructive `git reset --hard`. |
-| `test/thirdparty/cpython.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
-| `test/thirdparty/git.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
-| `test/thirdparty/libpng.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
-| `test/thirdparty/sqlite.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
-| `test/thirdparty/tinycc.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
+| Path | Replica |
+| --- | --- |
+| `.gitignore` | [meta/replica/.gitignore.md](replica/.gitignore.md) |
+| `AGENTS.md` | [meta/replica/AGENTS.md.md](replica/AGENTS.md.md) |
+| `LICENSE` | [meta/replica/LICENSE.md](replica/LICENSE.md) |
+| `Makefile` | [meta/replica/Makefile.md](replica/Makefile.md) |
+| `mypy.ini` | [meta/replica/mypy.ini.md](replica/mypy.ini.md) |
+| `README.md` | [meta/replica/README.md.md](replica/README.md.md) |
+| `reset.sh` | [meta/replica/reset.sh.md](replica/reset.sh.md) |
+| `test/driver.sh` | [meta/replica/test/driver.sh.md](replica/test/driver.sh.md) |
+| `test/thirdparty/common.sh.inc` | [meta/replica/test/thirdparty/common.sh.inc.md](replica/test/thirdparty/common.sh.inc.md) |
+| `test/thirdparty/cpython.sh` | [meta/replica/test/thirdparty/cpython.sh.md](replica/test/thirdparty/cpython.sh.md) |
+| `test/thirdparty/git.sh` | [meta/replica/test/thirdparty/git.sh.md](replica/test/thirdparty/git.sh.md) |
+| `test/thirdparty/libpng.sh` | [meta/replica/test/thirdparty/libpng.sh.md](replica/test/thirdparty/libpng.sh.md) |
+| `test/thirdparty/sqlite.sh` | [meta/replica/test/thirdparty/sqlite.sh.md](replica/test/thirdparty/sqlite.sh.md) |
+| `test/thirdparty/tinycc.sh` | [meta/replica/test/thirdparty/tinycc.sh.md](replica/test/thirdparty/tinycc.sh.md) |
