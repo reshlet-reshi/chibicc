@@ -17,8 +17,7 @@ STAGE1=.make/stage1
 STAGE2=.make/stage2
 STAGE1_CHIBICC=$(STAGE1)/chibicc
 STAGE2_CHIBICC=$(STAGE2)/chibicc
-DEFAULT_SRC_DIST=.make/chibicc.tar.gz
-SRC_DIST?=$(DEFAULT_SRC_DIST)
+SRC_DIST?=.make/chibicc.tar.gz
 SRC_DIST_ROOT=chibicc
 SRC_DIST_LIST=.make/src-dist.files
 ```
@@ -32,9 +31,10 @@ through GNU Make's normal `MAKEFLAGS` handling.
 
 `STAGE1` and `STAGE2` are extracted source roots under `.make/`.
 `STAGE1_CHIBICC` and `STAGE2_CHIBICC` are the compiler binaries produced in
-those extracted roots. `DEFAULT_SRC_DIST` is the archive that stage builds
-consume. `SRC_DIST` is overridable for `make src-dist`, and `SRC_DIST_ROOT`
-is the top-level directory name stored inside the tarball.
+those extracted roots. `SRC_DIST` is the source archive that `src-dist`
+writes and stage builds consume; callers can override it to choose a different
+archive path. `SRC_DIST_ROOT` is the top-level directory name stored inside
+the tarball.
 
 `SRC_DIST_LIST` is a temporary nul-delimited list consumed by tar. It lives
 under `.make/`, including when `make src-dist` is run from an extracted tree.
@@ -193,13 +193,13 @@ continues to use the host compiler, which accepts link options such as
 ```make
 # Stage extraction
 
-$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(DEFAULT_SRC_DIST)
+$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
 	@case '$(@D)' in .make/*) ;; \
 		*) echo 'refusing to prepare stage outside .make' >&2; exit 1;; \
 	esac
 	rm -rf $(@D) $(@D).unpack
 	mkdir -p $(@D).unpack
-	tar -xzf $(DEFAULT_SRC_DIST) -C $(@D).unpack
+	tar -xzf $(SRC_DIST) -C $(@D).unpack
 	mv $(@D).unpack/$(SRC_DIST_ROOT) $(@D)
 	rm -rf $(@D).unpack
 	touch $@
@@ -284,26 +284,18 @@ as `-pthread`.
 
 src-dist: $(SRC_DIST)
 
-$(DEFAULT_SRC_DIST): $(DIST_FILES)
-	mkdir -p $(dir $@) $(dir $(SRC_DIST_LIST))
-	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
-	tar --null -T $(SRC_DIST_LIST) \
-		--transform='s,^,$(SRC_DIST_ROOT)/,' \
-		-czf $@
-
-ifneq ($(SRC_DIST),$(DEFAULT_SRC_DIST))
 $(SRC_DIST): $(DIST_FILES)
 	mkdir -p $(dir $@) $(dir $(SRC_DIST_LIST))
 	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
 	tar --null -T $(SRC_DIST_LIST) \
 		--transform='s,^,$(SRC_DIST_ROOT)/,' \
 		-czf $@
-endif
 ```
 
 `src-dist` is the public command target. By default it creates
 `.make/chibicc.tar.gz`; callers can override `SRC_DIST` to write somewhere
-else.
+else. Stage extraction also depends on `$(SRC_DIST)`, so the same override
+chooses the archive path used by stage builds.
 
 The archive target depends on every `DIST_FILES` entry. The recipe creates
 the output directory and the temporary list directory, writes the explicit
@@ -313,9 +305,6 @@ file list as nul-delimited records, and gives that list to GNU tar with
 `--transform` prefixes every archive member with `$(SRC_DIST_ROOT)/`, so the
 tarball expands to a wrapping `chibicc/` directory. Stage extraction flattens
 that wrapper by moving `chibicc/` to the requested stage path.
-
-The conditional rule exists so `make src-dist SRC_DIST=/tmp/chibicc.tar.gz`
-has a real file target separate from the default archive.
 
 ## Cleanup and phony targets
 
@@ -333,7 +322,7 @@ archives, temporary test outputs, and stale root `stage2` output from the old
 layout. The final `find` removes backup files and any leftover object files
 outside the current directory layout.
 
-Command targets are phony. Real file targets such as `$(DEFAULT_SRC_DIST)`,
+Command targets are phony. Real file targets such as `$(SRC_DIST)`,
 `$(STAGE1_CHIBICC)`, `$(STAGE2_CHIBICC)`, local objects, and local test
 executables are left as normal targets so Make can use timestamps to decide
 what is stale.

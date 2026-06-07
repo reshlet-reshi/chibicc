@@ -4,8 +4,7 @@ STAGE1=.make/stage1
 STAGE2=.make/stage2
 STAGE1_CHIBICC=$(STAGE1)/chibicc
 STAGE2_CHIBICC=$(STAGE2)/chibicc
-DEFAULT_SRC_DIST=.make/chibicc.tar.gz
-SRC_DIST?=$(DEFAULT_SRC_DIST)
+SRC_DIST?=.make/chibicc.tar.gz
 SRC_DIST_ROOT=chibicc
 SRC_DIST_LIST=.make/src-dist.files
 
@@ -126,13 +125,13 @@ test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 
 # Stage extraction
 
-$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(DEFAULT_SRC_DIST)
+$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
 	@case '$(@D)' in .make/*) ;; \
 		*) echo 'refusing to prepare stage outside .make' >&2; exit 1;; \
 	esac
 	rm -rf $(@D) $(@D).unpack
 	mkdir -p $(@D).unpack
-	tar -xzf $(DEFAULT_SRC_DIST) -C $(@D).unpack
+	tar -xzf $(SRC_DIST) -C $(@D).unpack
 	mv $(@D).unpack/$(SRC_DIST_ROOT) $(@D)
 	rm -rf $(@D).unpack
 	touch $@
@@ -161,21 +160,12 @@ $(TEST_EXEDIR)/%.exe: $(LOCAL_CHIBICC) test/%.c test/shared/common.c
 
 src-dist: $(SRC_DIST)
 
-$(DEFAULT_SRC_DIST): $(DIST_FILES)
-	mkdir -p $(dir $@) $(dir $(SRC_DIST_LIST))
-	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
-	tar --null -T $(SRC_DIST_LIST) \
-		--transform='s,^,$(SRC_DIST_ROOT)/,' \
-		-czf $@
-
-ifneq ($(SRC_DIST),$(DEFAULT_SRC_DIST))
 $(SRC_DIST): $(DIST_FILES)
 	mkdir -p $(dir $@) $(dir $(SRC_DIST_LIST))
 	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
 	tar --null -T $(SRC_DIST_LIST) \
 		--transform='s,^,$(SRC_DIST_ROOT)/,' \
 		-czf $@
-endif
 
 clean:
 	rm -rf chibicc .make .o tmp* test/.exe test/.o test/*.s test/*.exe
