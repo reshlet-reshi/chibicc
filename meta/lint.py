@@ -20,6 +20,7 @@ NOOP_EXTENSIONS = {
     ".gitignore",
     ".h",
     ".md",
+    ".mk",
 }
 RECOGNIZED_EXTENSIONS = NOOP_EXTENSIONS | SHELL_EXTENSIONS | {".ini", ".py"}
 
