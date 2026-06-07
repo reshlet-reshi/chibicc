@@ -61,6 +61,7 @@ def main() -> None:
             ],
         )
 
+    run([sys.executable, str(META / "readme.py")])
     run([sys.executable, str(META / "manifest.py")])
 
 
