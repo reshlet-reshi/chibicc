@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 
@@ -12,11 +13,10 @@ MANIFEST = ROOT / "docs" / "manifest.md"
 IGNORE = ROOT / "docs" / "manifest.ignore.md"
 
 
-def git(args, input_data=None):
+def git(args: Sequence[str]) -> bytes:
     proc = subprocess.run(
         ["git", *args],
         cwd=ROOT,
-        input=input_data,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -27,17 +27,17 @@ def git(args, input_data=None):
     return proc.stdout
 
 
-def git_paths(args):
+def git_paths(args: Sequence[str]) -> set[str]:
     out = git([*args, "-z"])
     if not out:
         return set()
     return {p.decode() for p in out.rstrip(b"\0").split(b"\0")}
 
 
-def extract_gitignore_block(path):
+def extract_gitignore_block(path: Path) -> str:
     lines = path.read_text().splitlines()
-    blocks = []
-    current = None
+    blocks: list[list[str]] = []
+    current: list[str] | None = None
 
     for line in lines:
         if current is None:
@@ -60,8 +60,8 @@ def extract_gitignore_block(path):
     return "\n".join(blocks[0]) + "\n"
 
 
-def manifest_paths(path):
-    paths = []
+def manifest_paths(path: Path) -> set[str]:
+    paths: list[str] = []
     row_re = re.compile(r"^\| `([^`]+)` \|")
 
     for line in path.read_text().splitlines():
@@ -77,18 +77,18 @@ def manifest_paths(path):
     return set(paths)
 
 
-def ignored_by_manifest(patterns):
+def ignored_by_manifest(patterns: str) -> set[str]:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8") as f:
         f.write(patterns)
         f.flush()
         return git_paths(["ls-files", "-ci", "-X", f.name])
 
 
-def ignored_by_root_gitignore():
+def ignored_by_root_gitignore() -> set[str]:
     return git_paths(["ls-files", "-ci", "-X", str(ROOT / ".gitignore")])
 
 
-def report(title, paths):
+def report(title: str, paths: Sequence[str]) -> None:
     if not paths:
         return
     print(f"{title}:", file=sys.stderr)
@@ -96,7 +96,7 @@ def report(title, paths):
         print(f"  {path}", file=sys.stderr)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Validate docs/manifest.md against docs/manifest.ignore.md",
     )
