@@ -16,14 +16,14 @@ file. Recipe-only variables can sit beside the recipe that consumes them.
 ## Entry points
 
 ```make
-default: compiler
+default: chibicc
 
 all: test-all
 ```
 
 The first target is `default`, so plain `make` builds the local compiler
-through that named target. `default` depends on `compiler`, the phony
-local-stage command target that writes root `./chibicc` and `.o/*.o` outputs.
+through that named target. `default` depends on `chibicc`, the real local
+compiler file target that writes root `./chibicc` from `.o/*.o` objects.
 
 The conventional `all` target is an alias for `test-all`, so `make all` runs
 the full stage 1 and stage 2 test gate without changing the default target's
@@ -43,13 +43,18 @@ COMPILER_SRCS=\
 OBJDIR=.o
 OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
 
-compiler:
-	mkdir -p $(OBJDIR)
-	for src in $(COMPILER_SRCS); do \
-		obj=$(OBJDIR)/$${src%.c}.o; \
-		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
-	done
+chibicc: $(OBJS)
 	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
+
+$(OBJDIR)/codegen.o: codegen.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/codegen.o codegen.c
+
+...
+
+$(OBJDIR)/unicode.o: unicode.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/unicode.o unicode.c
 ```
 
 `CFLAGS` is the host compiler warning and debug policy. It requests C11,
@@ -65,22 +70,21 @@ Those files become `$(OBJDIR)/*.o` and then link into `chibicc`.
 `OBJDIR` receives compiler objects such as `.o/parse.o`. `OBJS` maps every
 root compiler source into that object directory while preserving the stem.
 
-`compiler` builds `chibicc` in whatever tree Make is currently running in.
-The target first creates `$(OBJDIR)`, then loops over `$(COMPILER_SRCS)`.
-`$$src` is a shell variable; the doubled dollar signs pass a literal `$`
-through Make to the shell. `$${src%.c}` strips the `.c` suffix, so `parse.c`
-maps to `.o/parse.o`.
+`chibicc` is a real file target. It depends on the full object list, and its
+recipe links the literal `chibicc` executable from `$(OBJS)`. `$(LDFLAGS)`
+remains available for callers that need additional link flags.
 
-Each loop iteration compiles one root compiler source with `$(CC)
-$(CFLAGS)`. The `|| exit 1` guard stops the loop at the first failed compile
-instead of continuing to link with a missing or stale object. The final
-command links the literal `chibicc` executable from the explicit `$(OBJS)`
-list. `$(LDFLAGS)` remains available for callers that need additional link
-flags.
+Each compiler object is also a real file target. The Makefile writes these
+rules explicitly instead of using GNU Make pattern target syntax, keeping the
+local stage build usable with pdpmake. Every object depends on its matching
+source file and on `chibicc.h`, so touching the shared header rebuilds all
+compiler objects.
 
-The recipe intentionally avoids GNU Make pattern rules and automatic
-variables such as `$@`, `$<`, and `$^`, keeping the local stage build usable
-with pdpmake.
+The object recipes create `$(OBJDIR)` before compiling. They use literal
+source filenames such as `codegen.c` instead of `$<`, because pdpmake's `$<`
+extension can mean the first out-of-date prerequisite rather than simply the
+first prerequisite. The real target graph lets Make skip up-to-date objects
+and avoid relinking `chibicc` when nothing relevant changed.
 
 ## Local compiler test build
 
@@ -97,7 +101,7 @@ TEST_EXEDIR=test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 TEST_LINK_CC?=$(CC)
 
-test-compiler: compiler
+test-compiler: chibicc
 	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
@@ -120,7 +124,7 @@ to the executable path with the same stem.
 `TEST_LINK_CC` defaults to `$(CC)` but can be overridden by the outer
 orchestrator when compiler-building and test-linking need different drivers.
 
-`test-compiler` depends on `compiler`, so the local `./chibicc` is rebuilt
+`test-compiler` depends on `chibicc`, so the local compiler file is rebuilt
 before test objects are compiled. The recipe creates the test object and
 executable directories, then loops over `$(TEST_SRCS)`.
 
@@ -229,7 +233,7 @@ STAGE1=.make/stage1
 STAGE1_CHIBICC=$(STAGE1)/chibicc
 
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
-	$(MAKE) -C $(STAGE1) compiler
+	$(MAKE) -C $(STAGE1) chibicc
 
 test: $(STAGE1)/.src-ready
 	$(MAKE) -C $(STAGE1) test-compiler
@@ -245,7 +249,7 @@ prerequisites.
 `$(STAGE1_CHIBICC)` depends on `$(STAGE1)/.src-ready`, a stamp that means the
 source archive has been extracted into `.make/stage1`.
 
-The recipe enters the extracted tree with `$(MAKE) -C $(STAGE1)`.
+The recipe enters the extracted tree with `$(MAKE) -C $(STAGE1) chibicc`.
 `$(MAKE)` preserves recursive Make behavior such as jobserver flags. Stage 1
 uses the extracted Makefile's normal `$(CC)` and `$(CFLAGS)` values, so
 compiler sources are still built with the host warning policy.
@@ -263,7 +267,7 @@ STAGE2_CHIBICC=$(STAGE2)/chibicc
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
-			CFLAGS= compiler
+			CFLAGS= chibicc
 
 test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
@@ -326,7 +330,7 @@ clean:
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: all clean compiler default src-dist test test-compiler
+.PHONY: all clean default src-dist test test-compiler
 .PHONY: test-all test-stage2
 ```
 
@@ -335,6 +339,6 @@ archives, temporary test outputs, and stale root `stage2` output from the old
 layout. The final `find` removes backup files and any leftover object files
 outside the current directory layout.
 
-Command targets are phony. Real file targets such as `$(SRC_DIST)`,
-`$(STAGE1_CHIBICC)`, and `$(STAGE2_CHIBICC)` are left as normal targets so
-Make can use timestamps to decide what is stale.
+Command targets are phony. Real file targets such as `chibicc`,
+`$(SRC_DIST)`, `$(STAGE1_CHIBICC)`, and `$(STAGE2_CHIBICC)` are left as
+normal targets so Make can use timestamps to decide what is stale.

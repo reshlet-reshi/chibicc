@@ -1,4 +1,4 @@
-default: compiler
+default: chibicc
 
 all: test-all
 
@@ -18,13 +18,44 @@ COMPILER_SRCS=\
 OBJDIR=.o
 OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
 
-compiler:
-	mkdir -p $(OBJDIR)
-	for src in $(COMPILER_SRCS); do \
-		obj=$(OBJDIR)/$${src%.c}.o; \
-		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
-	done
+chibicc: $(OBJS)
 	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
+
+$(OBJDIR)/codegen.o: codegen.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/codegen.o codegen.c
+
+$(OBJDIR)/hashmap.o: hashmap.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/hashmap.o hashmap.c
+
+$(OBJDIR)/main.o: main.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/main.o main.c
+
+$(OBJDIR)/parse.o: parse.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/parse.o parse.c
+
+$(OBJDIR)/preprocess.o: preprocess.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/preprocess.o preprocess.c
+
+$(OBJDIR)/strings.o: strings.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/strings.o strings.c
+
+$(OBJDIR)/tokenize.o: tokenize.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/tokenize.o tokenize.c
+
+$(OBJDIR)/type.o: type.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/type.o type.c
+
+$(OBJDIR)/unicode.o: unicode.c chibicc.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $(OBJDIR)/unicode.o unicode.c
 
 TEST_SRCS=\
 	test/alignof.c \
@@ -74,7 +105,7 @@ TEST_EXEDIR=test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 TEST_LINK_CC?=$(CC)
 
-test-compiler: compiler
+test-compiler: chibicc
 	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
@@ -142,7 +173,7 @@ STAGE1=.make/stage1
 STAGE1_CHIBICC=$(STAGE1)/chibicc
 
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
-	$(MAKE) -C $(STAGE1) compiler
+	$(MAKE) -C $(STAGE1) chibicc
 
 test: $(STAGE1)/.src-ready
 	$(MAKE) -C $(STAGE1) test-compiler
@@ -155,7 +186,7 @@ STAGE2_CHIBICC=$(STAGE2)/chibicc
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
-			CFLAGS= compiler
+			CFLAGS= chibicc
 
 test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
@@ -178,5 +209,5 @@ clean:
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: all clean compiler default src-dist test test-compiler
+.PHONY: all clean default src-dist test test-compiler
 .PHONY: test-all test-stage2
