@@ -13,7 +13,8 @@ TEST_OBJDIR=.make/stage1/test/.o
 TEST_EXEDIR=.make/stage1/test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 STAGE2_TEST_OBJDIR=stage2/test/.o
-STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
+STAGE2_TEST_EXEDIR=stage2/test/.exe
+STAGE2_TESTS=$(TEST_SRCS:test/%.c=$(STAGE2_TEST_EXEDIR)/%.exe)
 
 # Stage 1
 
@@ -45,7 +46,7 @@ $(STAGE2_OBJDIR)/%.o: $(CHIBICC) %.c
 	mkdir -p $(@D)
 	./$(CHIBICC) -Iinclude -c -o $@ $*.c
 
-stage2/test/%.exe: stage2/chibicc test/%.c test/shared/common.c
+$(STAGE2_TEST_EXEDIR)/%.exe: stage2/chibicc test/%.c test/shared/common.c
 	mkdir -p $(@D) $(STAGE2_TEST_OBJDIR)
 	./stage2/chibicc -Iinclude -Itest -c -o $(STAGE2_TEST_OBJDIR)/$*.o test/$*.c
 	$(CC) -pthread -o $@ $(STAGE2_TEST_OBJDIR)/$*.o test/shared/common.c
