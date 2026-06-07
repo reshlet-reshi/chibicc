@@ -5,13 +5,12 @@ Snapshot date: 2026-06-07
 This is a repository snapshot; branch tips and ahead counts may change after
 new commits.
 
-- `32bit`
+- `reshi`
   - Kind: local
   - Tip: current working branch tip
-  - Upstream / relation: tracks `origin/32bit`
+  - Upstream / relation: tracks `origin/reshi`
   - Status: Active development branch for this work.
-  - Local unpushed: May have local commits not present on `origin/32bit`;
-    check with `git log --oneline origin/32bit..32bit`.
+  - Local unpushed: Matches `origin/reshi` at this snapshot.
 - `main`
   - Kind: local
   - Tip: ``90d1f7f Make struct member access to work with `=` and `?:` ``
@@ -30,11 +29,11 @@ new commits.
   - Upstream / relation: no upstream
   - Status: Preserves the larger overgrown WIP snapshot for reference.
   - Local unpushed: Has no upstream and is intentionally local.
-- `origin/32bit`
+- `origin/reshi`
   - Kind: remote-tracking
-  - Tip: ``90d1f7f Make struct member access to work with `=` and `?:` ``
+  - Tip: `dd4a651 Rename compiler source list`
   - Upstream / relation: remote branch
-  - Status: Baseline for current `32bit` work.
+  - Status: Baseline for current `reshi` work.
 - `origin/main`
   - Kind: remote-tracking
   - Tip: ``90d1f7f Make struct member access to work with `=` and `?:` ``
