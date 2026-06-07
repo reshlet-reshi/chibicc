@@ -3,6 +3,7 @@
 | File | Status | Notes |
 | --- | --- | --- |
 | `.gitignore` | OK | Ignores build/test outputs, local temporaries, and third-party checkout state. |
+| `docs/branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
 | `docs/manifest.md` | Reviewed | This manifest for tracked non-`.c`/`.h` files. |
 | `LICENSE` | OK | MIT license text. |
 | `Makefile` | Needs cleanup | Core build/test entrypoint; `test-all` should be added to `.PHONY`. |
