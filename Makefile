@@ -109,7 +109,7 @@ TEST_LINK_CC?=$(CC)
 
 # Default
 
-default: stage-compiler
+default: compiler
 
 # Source distribution
 
@@ -125,10 +125,10 @@ src-dist: $(SRC_DIST)
 # Stage 1
 
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
-	$(MAKE) -C $(STAGE1) stage-compiler
+	$(MAKE) -C $(STAGE1) compiler
 
 test: $(STAGE1)/.src-ready
-	$(MAKE) -C $(STAGE1) stage-test
+	$(MAKE) -C $(STAGE1) test-compiler
 
 test-all: test test-stage2
 
@@ -137,12 +137,12 @@ test-all: test test-stage2
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
-			CFLAGS= stage-compiler
+			CFLAGS= compiler
 
 test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
-			"TEST_LINK_CC=$(CC)" CFLAGS= stage-test
+			"TEST_LINK_CC=$(CC)" CFLAGS= test-compiler
 
 # Stage extraction
 
@@ -159,7 +159,7 @@ $(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
 
 # Local stage build
 
-stage-compiler:
+compiler:
 	mkdir -p $(OBJDIR)
 	for src in $(COMPILER_SRCS); do \
 		obj=$(OBJDIR)/$${src%.c}.o; \
@@ -167,7 +167,7 @@ stage-compiler:
 	done
 	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
 
-stage-test: stage-compiler
+test-compiler: compiler
 	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
@@ -188,5 +188,5 @@ clean:
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: clean default src-dist stage-compiler stage-test test
+.PHONY: clean compiler default src-dist test test-compiler
 .PHONY: test-all test-stage2

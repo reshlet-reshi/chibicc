@@ -121,7 +121,7 @@ TEST_LINK_CC?=$(CC)
 ```
 
 These variables describe one local stage tree. In the repository root they
-allow direct commands such as `make stage-compiler` and `make stage-test`.
+allow direct commands such as `make compiler` and `make test-compiler`.
 Inside `.make/stage1` or `.make/stage2`, the same variables point at the
 outputs for that extracted stage.
 
@@ -140,7 +140,7 @@ orchestrator when compiler-building and test-linking need different drivers.
 ```make
 # Default
 
-default: stage-compiler
+default: compiler
 
 # Source distribution
 
@@ -155,7 +155,7 @@ src-dist: $(SRC_DIST)
 ```
 
 The first target is `default`, so plain `make` builds the local compiler
-through that named target. `default` depends on `stage-compiler`, the phony
+through that named target. `default` depends on `compiler`, the phony
 local-stage command target that writes root `./chibicc` and `.o/*.o` outputs.
 This keeps the default build lightweight while leaving `test-all` as the
 full "does everything work right now?" gate.
@@ -182,10 +182,10 @@ that wrapper by moving `chibicc/` to the requested stage path.
 # Stage 1
 
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
-	$(MAKE) -C $(STAGE1) stage-compiler
+	$(MAKE) -C $(STAGE1) compiler
 
 test: $(STAGE1)/.src-ready
-	$(MAKE) -C $(STAGE1) stage-test
+	$(MAKE) -C $(STAGE1) test-compiler
 
 test-all: test test-stage2
 ```
@@ -199,8 +199,8 @@ uses the extracted Makefile's normal `$(CC)` and `$(CFLAGS)` values, so
 compiler sources are still built with the host warning policy.
 
 The public `test` target follows the same extraction path but asks the
-extracted Makefile to run `stage-test`. `test-all` is just an aggregate over
-the stage 1 and stage 2 test commands.
+extracted Makefile to run `test-compiler`. `test-all` is just an aggregate
+over the stage 1 and stage 2 test commands.
 
 ## Stage 2 orchestration
 
@@ -210,12 +210,12 @@ the stage 1 and stage 2 test commands.
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
-			CFLAGS= stage-compiler
+			CFLAGS= compiler
 
 test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
-			"TEST_LINK_CC=$(CC)" CFLAGS= stage-test
+			"TEST_LINK_CC=$(CC)" CFLAGS= test-compiler
 ```
 
 Stage 2 has two prerequisites: the stage 1 compiler and an extracted stage 2
@@ -229,10 +229,10 @@ warning flags from being passed to chibicc while it is compiling stage 2. The
 include path remains stage-local because the recursive call runs from inside
 `.make/stage2`.
 
-`test-stage2` asks the stage 2 extracted Makefile to run `stage-test`, so the
-tests are compiled by `.make/stage2/chibicc` after that compiler has been
-built. It also passes `TEST_LINK_CC=$(CC)` so the final test executable link
-continues to use the host compiler, which accepts link options such as
+`test-stage2` asks the stage 2 extracted Makefile to run `test-compiler`, so
+the tests are compiled by `.make/stage2/chibicc` after that compiler has
+been built. It also passes `TEST_LINK_CC=$(CC)` so the final test executable
+link continues to use the host compiler, which accepts link options such as
 `-pthread`.
 
 ## Stage extraction
@@ -269,7 +269,7 @@ source distribution gives the next stage build a clean source tree.
 ```make
 # Local stage build
 
-stage-compiler:
+compiler:
 	mkdir -p $(OBJDIR)
 	for src in $(COMPILER_SRCS); do \
 		obj=$(OBJDIR)/$${src%.c}.o; \
@@ -278,8 +278,8 @@ stage-compiler:
 	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
 ```
 
-`stage-compiler` is the local command target. It builds `chibicc` in whatever
-tree Make is currently running in.
+`compiler` is the local command target. It builds `chibicc` in whatever tree
+Make is currently running in.
 
 The target first creates `$(OBJDIR)`, then loops over `$(COMPILER_SRCS)`.
 `$$src` is a shell variable; the doubled dollar signs pass a literal `$`
@@ -304,7 +304,7 @@ only the stage-local include path.
 ## Local test build
 
 ```make
-stage-test: stage-compiler
+test-compiler: compiler
 	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
@@ -319,7 +319,7 @@ stage-test: stage-compiler
 	test/driver.sh ./$(LOCAL_CHIBICC)
 ```
 
-`stage-test` depends on `stage-compiler`, so the local `./chibicc` is rebuilt
+`test-compiler` depends on `compiler`, so the local `./chibicc` is rebuilt
 before test objects are compiled. The recipe creates the test object and
 executable directories, then loops over `$(TEST_SRCS)`.
 
@@ -352,7 +352,7 @@ clean:
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: clean default src-dist stage-compiler stage-test test
+.PHONY: clean compiler default src-dist test test-compiler
 .PHONY: test-all test-stage2
 ```
 
