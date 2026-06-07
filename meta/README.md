@@ -9,4 +9,4 @@
 | `lint.sh` | Reviewed | Self-locating Bash bootstrap for type-checking and invoking `meta/lint.py`. |
 | `manifest.md` | Reviewed | Positive manifest of tracked repository files outside `meta/` and its omission contract. |
 | `manifest.py` | Reviewed | Enforces the repository manifest against its embedded omission contract. |
-| `readme.py` | Reviewed | Enforces this local metadata manifest against tracked `meta/` files. |
+| `README.py` | Reviewed | Enforces this local metadata manifest against tracked `meta/` files. |
