@@ -1,15 +1,15 @@
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
 
-CHIBICC=.make/chibicc
+CHIBICC=.make/stage1/chibicc
 
 SRCS=$(wildcard *.c)
-OBJDIR=.make/.o
+OBJDIR=.make/stage1/.o
 OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
 STAGE2_OBJS=$(SRCS:%.c=stage2/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
-TEST_OBJDIR=.make/test/.o
-TEST_EXEDIR=.make/test/.exe
+TEST_OBJDIR=.make/stage1/test/.o
+TEST_EXEDIR=.make/stage1/test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
 STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
 
