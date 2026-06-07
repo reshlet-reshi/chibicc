@@ -6,6 +6,14 @@ repo_root=$(git -C "$script_dir" rev-parse --show-toplevel)
 
 cd "$repo_root"
 
+mapfile -d '' -t shell_files < <(
+  git ls-files -z --cached --others -X "$repo_root/.gitignore" -- '*.sh' '*.sh.inc'
+)
+
+if ((${#shell_files[@]})); then
+  shellcheck -x -s bash "${shell_files[@]}"
+fi
+
 mapfile -d '' -t py_files < <(
   git ls-files -z --cached --others -X "$repo_root/.gitignore" -- '*.py'
 )

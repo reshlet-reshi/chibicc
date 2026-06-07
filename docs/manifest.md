@@ -6,7 +6,7 @@
 | `AGENTS.md` | Reviewed | Root policy pointer to the detailed docs agent instructions. |
 | `docs/branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
 | `docs/AGENTS.md` | Reviewed | Agent policy requiring clean commits and passing docs lint. |
-| `docs/lint.sh` | Reviewed | Self-locating Bash wrapper for strict mypy over repo-visible Python files and the manifest checker. |
+| `docs/lint.sh` | Reviewed | Self-locating Bash wrapper for ShellCheck, strict mypy, and manifest validation. |
 | `docs/manifest.ignore.md` | Reviewed | Defines the omission contract for files intentionally left out of this manifest. |
 | `docs/manifest.md` | Reviewed | Positive manifest of tracked files requiring explicit audit/status. |
 | `docs/manifest.py` | Reviewed | Enforces this manifest against the manifest ignore contract. |
@@ -15,7 +15,7 @@
 | `mypy.ini` | Reviewed | Very strict explicit mypy configuration for repository Python lint. |
 | `README.md` | OK | Upstream project overview and design notes. |
 | `reset.sh` | Reviewed | Destructive reset helper with confirmation prompt and repo-directory anchoring. |
-| `test/driver.sh` | Works, noisy | Driver tests pass syntax checks; shellcheck reports legacy quoting/style noise. |
+| `test/driver.sh` | Reviewed | Driver tests are covered by ShellCheck and regression test targets. |
 | `test/thirdparty/common.sh.inc` | Needs fix | Checkout helper should validate standalone Git checkouts before destructive `git reset --hard`. |
 | `test/thirdparty/cpython.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
 | `test/thirdparty/git.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
