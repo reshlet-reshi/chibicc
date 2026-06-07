@@ -111,6 +111,17 @@ TEST_LINK_CC?=$(CC)
 
 default: $(STAGE1_CHIBICC)
 
+# Source distribution
+
+$(SRC_DIST): $(DIST_FILES)
+	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
+	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
+	tar --null -T $(SRC_DIST_LIST) \
+		--transform='s,^,$(SRC_DIST_ROOT)/,' \
+		-czf $@
+
+src-dist: $(SRC_DIST)
+
 # Stage 1
 
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
@@ -171,15 +182,6 @@ stage-test: stage-compiler
 	test/driver.sh ./$(LOCAL_CHIBICC)
 
 # Misc.
-
-src-dist: $(SRC_DIST)
-
-$(SRC_DIST): $(DIST_FILES)
-	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
-	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
-	tar --null -T $(SRC_DIST_LIST) \
-		--transform='s,^,$(SRC_DIST_ROOT)/,' \
-		-czf $@
 
 clean:
 	rm -rf chibicc .make .o tmp* test/.exe test/.o test/*.s test/*.exe

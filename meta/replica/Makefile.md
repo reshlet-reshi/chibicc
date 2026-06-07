@@ -135,13 +135,50 @@ The substitutions preserve each stem. For example, `parse.c` maps to
 `TEST_LINK_CC` defaults to `$(CC)` but can be overridden by the outer
 orchestrator when compiler-building and test-linking need different drivers.
 
-## Default and stage 1 orchestration
+## Default and source distribution
 
 ```make
 # Default
 
 default: $(STAGE1_CHIBICC)
 
+# Source distribution
+
+$(SRC_DIST): $(DIST_FILES)
+	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
+	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
+	tar --null -T $(SRC_DIST_LIST) \
+		--transform='s,^,$(SRC_DIST_ROOT)/,' \
+		-czf $@
+
+src-dist: $(SRC_DIST)
+```
+
+The first real target is `default`, so plain `make` builds the stage 1
+compiler through that named target. `default` depends on
+`$(STAGE1_CHIBICC)`, which remains the real file target for the generated
+stage 1 compiler. This keeps the default build small while leaving room for a
+future `all` target to collect broader work.
+
+The next real target is `$(SRC_DIST)`, the source archive file target. By
+default it creates `.make/chibicc.tar.gz`; callers can override `SRC_DIST` to
+write somewhere else. Stage extraction also depends on `$(SRC_DIST)`, so the
+same override chooses the archive path used by stage builds.
+
+The archive target depends on every `DIST_FILES` entry. The recipe creates
+the output directory and the temporary list directory with shell `dirname`
+rather than GNU make's `$(dir ...)`, writes the explicit file list as
+nul-delimited records, and gives that list to GNU tar with `--null -T`.
+
+`--transform` prefixes every archive member with `$(SRC_DIST_ROOT)/`, so the
+tarball expands to a wrapping `chibicc/` directory. Stage extraction flattens
+that wrapper by moving `chibicc/` to the requested stage path.
+
+`src-dist` is the public command target for building the archive directly.
+
+## Stage 1 orchestration
+
+```make
 # Stage 1
 
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
@@ -152,12 +189,6 @@ test: $(STAGE1)/.src-ready
 
 test-all: test test-stage2
 ```
-
-The first real target is `default`, so plain `make` builds the stage 1
-compiler through that named target. `default` depends on
-`$(STAGE1_CHIBICC)`, which remains the real file target for the generated
-stage 1 compiler. This keeps the default build small while leaving room for a
-future `all` target to collect broader work.
 
 `$(STAGE1_CHIBICC)` depends on `$(STAGE1)/.src-ready`, a stamp that means the
 source archive has been extracted into `.make/stage1`.
@@ -311,38 +342,11 @@ helper warnings do not become `-Werror` failures. Stage 2 overrides
 `TEST_LINK_CC` to the host compiler because chibicc does not accept every
 linker option used here, such as `-pthread`.
 
-## Source distribution
+## Cleanup and phony targets
 
 ```make
 # Misc.
 
-src-dist: $(SRC_DIST)
-
-$(SRC_DIST): $(DIST_FILES)
-	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
-	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
-	tar --null -T $(SRC_DIST_LIST) \
-		--transform='s,^,$(SRC_DIST_ROOT)/,' \
-		-czf $@
-```
-
-`src-dist` is the public command target. By default it creates
-`.make/chibicc.tar.gz`; callers can override `SRC_DIST` to write somewhere
-else. Stage extraction also depends on `$(SRC_DIST)`, so the same override
-chooses the archive path used by stage builds.
-
-The archive target depends on every `DIST_FILES` entry. The recipe creates
-the output directory and the temporary list directory with shell `dirname`
-rather than GNU make's `$(dir ...)`, writes the explicit file list as
-nul-delimited records, and gives that list to GNU tar with `--null -T`.
-
-`--transform` prefixes every archive member with `$(SRC_DIST_ROOT)/`, so the
-tarball expands to a wrapping `chibicc/` directory. Stage extraction flattens
-that wrapper by moving `chibicc/` to the requested stage path.
-
-## Cleanup and phony targets
-
-```make
 clean:
 	rm -rf chibicc .make .o tmp* test/.exe test/.o test/*.s test/*.exe
 	rm -rf stage2
