@@ -1,7 +1,9 @@
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
 
 SRCS=$(wildcard *.c)
-OBJS=$(SRCS:.c=.o)
+OBJDIR=.make/.o
+OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
+STAGE2_OBJS=$(SRCS:%.c=stage2/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
 TESTS=$(TEST_SRCS:.c=.exe)
@@ -11,7 +13,9 @@ TESTS=$(TEST_SRCS:.c=.exe)
 chibicc: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(OBJS): chibicc.h
+$(OBJDIR)/%.o: %.c chibicc.h
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 test/%.exe: chibicc test/%.c test/shared/common.c
 	./chibicc -Iinclude -Itest -c -o test/$*.o test/$*.c
@@ -25,7 +29,7 @@ test-all: test test-stage2
 
 # Stage 2
 
-stage2/chibicc: $(OBJS:%=stage2/%)
+stage2/chibicc: $(STAGE2_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 stage2/%.o: chibicc %.c
@@ -44,7 +48,7 @@ test-stage2: $(TESTS:test/%=stage2/test/%)
 # Misc.
 
 clean:
-	rm -rf chibicc tmp* $(TESTS) test/*.s test/*.exe stage2
+	rm -rf chibicc .make tmp* $(TESTS) test/*.s test/*.exe stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
 .PHONY: test clean test-stage2

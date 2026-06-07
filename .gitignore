@@ -4,6 +4,7 @@
 **/*.s
 **/a.out
 **/__pycache__/
+/.make/
 /tmp*
 /thirdparty
 /chibicc
