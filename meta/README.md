@@ -4,11 +4,15 @@
 `meta/manifest.md`. Those files mirror repository paths and hold per-file
 documentation notes; individual replica files are intentionally not listed here.
 
+- `replica/`
+  - Per-file documentation subtree for paths listed in `meta/manifest.md`.
 - `AGENTS.md`
   - Agent policy requiring clean commits, passing meta lint, and keeping this
     README current.
 - `README.md`
   - Local manifest for metadata tooling and policy files.
+- `README.py`
+  - Enforces this local metadata manifest against tracked `meta/` files.
 - `branches.md`
   - Branch inventory, including local unpushed archive and WIP branches.
 - `lint.py`
@@ -21,7 +25,3 @@ documentation notes; individual replica files are intentionally not listed here.
     omission contract.
 - `manifest.py`
   - Enforces the repository manifest against its embedded omission contract.
-- `README.py`
-  - Enforces this local metadata manifest against tracked `meta/` files.
-- `replica/`
-  - Per-file documentation subtree for paths listed in `meta/manifest.md`.

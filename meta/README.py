@@ -34,7 +34,11 @@ def git_paths(args: Sequence[str]) -> set[str]:
     return {p.decode() for p in out.rstrip(b"\0").split(b"\0")}
 
 
-def readme_paths(path: Path) -> set[str]:
+def readme_sort_key(path: str) -> tuple[bool, str]:
+    return (not path.endswith("/"), path)
+
+
+def readme_paths(path: Path) -> list[str]:
     paths: list[str] = []
     item_re = re.compile(r"^- `([^`]+)`$")
 
@@ -48,7 +52,7 @@ def readme_paths(path: Path) -> set[str]:
         report("duplicate README entries", duplicates)
         raise SystemExit(1)
 
-    return set(paths)
+    return paths
 
 
 def tracked_meta_paths() -> set[str]:
@@ -89,13 +93,19 @@ def main() -> None:
 
     tracked = tracked_meta_paths()
     listed = readme_paths(README)
+    listed_set = set(listed)
 
-    missing = sorted(tracked - listed)
-    unknown = sorted(listed - tracked)
+    missing = sorted(tracked - listed_set)
+    unknown = sorted(listed_set - tracked)
 
     if missing or unknown:
         report("missing from meta README", missing)
         report("listed but not tracked in meta", unknown)
+        raise SystemExit(1)
+
+    expected = sorted(tracked, key=readme_sort_key)
+    if listed != expected:
+        report("meta README entries out of order; expected", expected)
         raise SystemExit(1)
 
     print(f"meta README ok: {len(listed)} listed")
