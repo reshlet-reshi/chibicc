@@ -34,13 +34,13 @@ lighter behavior.
 ```make
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
 
-COMPILER_SRCS=\
+SRCS=\
 	codegen.c \
 	hashmap.c \
 	...
 	unicode.c
 
-OBJS=$(COMPILER_SRCS:.c=.o)
+OBJS=$(SRCS:.c=.o)
 
 chibicc: $(OBJS)
 	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
@@ -61,8 +61,8 @@ remain explicitly disabled. Recursive Make calls read this default from the
 extracted Makefile, while command-line `CFLAGS=...` overrides still propagate
 through Make's normal `MAKEFLAGS` handling.
 
-`COMPILER_SRCS` is the semantic list of root compiler implementation sources.
-Those files become root `*.o` objects and then link into `chibicc`.
+`SRCS` is the semantic list of root compiler implementation sources. Those
+files become root `*.o` objects and then link into `chibicc`.
 
 `OBJS` maps every root compiler source into a root object file while
 preserving the stem, so `parse.c` becomes `parse.o`.
@@ -169,7 +169,7 @@ TEST_FILES=\
 
 DIST_FILES=\
 	$(DIST_ROOT_FILES) \
-	$(COMPILER_SRCS) \
+	$(SRCS) \
 	$(DIST_INCLUDE_FILES) \
 	$(TEST_FILES)
 
@@ -190,9 +190,9 @@ consume. Callers can override it to choose a different archive path.
 under `.make/`, including when `make src-dist` runs from an extracted tree.
 
 The source distribution no longer asks Git for a file list at build time.
-`DIST_ROOT_FILES`, `COMPILER_SRCS`, `DIST_INCLUDE_FILES`, and `TEST_FILES`
-are the explicit contract for files that enter the tarball. They contain
-tracked project files outside `meta/` and intentionally omit `.gitignore` and
+`DIST_ROOT_FILES`, `SRCS`, `DIST_INCLUDE_FILES`, and `TEST_FILES` are the
+explicit contract for files that enter the tarball. They contain tracked
+project files outside `meta/` and intentionally omit `.gitignore` and
 `.gitmodules`. Because these lists are ordinary Make data, the same archive
 rule works from the repository root and from an extracted source tree that has
 no `.git/` directory.

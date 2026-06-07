@@ -4,7 +4,7 @@ all: test-all
 
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
 
-COMPILER_SRCS=\
+SRCS=\
 	codegen.c \
 	hashmap.c \
 	main.c \
@@ -15,7 +15,7 @@ COMPILER_SRCS=\
 	type.c \
 	unicode.c
 
-OBJS=$(COMPILER_SRCS:.c=.o)
+OBJS=$(SRCS:.c=.o)
 
 chibicc: $(OBJS)
 	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
@@ -143,7 +143,7 @@ TEST_FILES=\
 
 DIST_FILES=\
 	$(DIST_ROOT_FILES) \
-	$(COMPILER_SRCS) \
+	$(SRCS) \
 	$(DIST_INCLUDE_FILES) \
 	$(TEST_FILES)
 
