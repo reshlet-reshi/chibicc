@@ -23,7 +23,7 @@ all: test-all
 
 The first target is `default`, so plain `make` builds the local compiler
 through that named target. `default` depends on `chibicc`, the real local
-compiler file target that writes root `./chibicc` from `.o/*.o` objects.
+compiler file target that writes root `./chibicc` from root `*.o` objects.
 
 The conventional `all` target is an alias for `test-all`, so `make all` runs
 the full stage 1 and stage 2 test gate without changing the default target's
@@ -40,21 +40,18 @@ COMPILER_SRCS=\
 	...
 	unicode.c
 
-OBJDIR=.o
-OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
+OBJS=$(COMPILER_SRCS:.c=.o)
 
 chibicc: $(OBJS)
 	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
 
-$(OBJDIR)/codegen.o: codegen.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/codegen.o codegen.c
+codegen.o: codegen.c chibicc.h
+	$(CC) $(CFLAGS) -c -o codegen.o codegen.c
 
 ...
 
-$(OBJDIR)/unicode.o: unicode.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/unicode.o unicode.c
+unicode.o: unicode.c chibicc.h
+	$(CC) $(CFLAGS) -c -o unicode.o unicode.c
 ```
 
 `CFLAGS` is the host compiler warning and debug policy. It requests C11,
@@ -65,10 +62,10 @@ extracted Makefile, while command-line `CFLAGS=...` overrides still propagate
 through Make's normal `MAKEFLAGS` handling.
 
 `COMPILER_SRCS` is the semantic list of root compiler implementation sources.
-Those files become `$(OBJDIR)/*.o` and then link into `chibicc`.
+Those files become root `*.o` objects and then link into `chibicc`.
 
-`OBJDIR` receives compiler objects such as `.o/parse.o`. `OBJS` maps every
-root compiler source into that object directory while preserving the stem.
+`OBJS` maps every root compiler source into a root object file while
+preserving the stem, so `parse.c` becomes `parse.o`.
 
 `chibicc` is a real file target. It depends on the full object list, and its
 recipe links the literal `chibicc` executable from `$(OBJS)`. `$(LDFLAGS)`
@@ -80,11 +77,11 @@ local stage build usable with pdpmake. Every object depends on its matching
 source file and on `chibicc.h`, so touching the shared header rebuilds all
 compiler objects.
 
-The object recipes create `$(OBJDIR)` before compiling. They use literal
-source filenames such as `codegen.c` instead of `$<`, because pdpmake's `$<`
-extension can mean the first out-of-date prerequisite rather than simply the
-first prerequisite. The real target graph lets Make skip up-to-date objects
-and avoid relinking `chibicc` when nothing relevant changed.
+The object recipes use literal source filenames such as `codegen.c` instead
+of `$<`, because pdpmake's `$<` extension can mean the first out-of-date
+prerequisite rather than simply the first prerequisite. The real target graph
+lets Make skip up-to-date objects and avoid relinking `chibicc` when nothing
+relevant changed.
 
 ## Local compiler test build
 
@@ -96,51 +93,46 @@ TEST_SRCS=\
 	...
 	test/vla.c
 
-TEST_OBJDIR=test/.o
-TEST_EXEDIR=test/.exe
-TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
+TESTS=$(TEST_SRCS:.c=.exe)
 TEST_LINK_CC?=$(CC)
 
 test-compiler: chibicc
-	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
 		stem=$${stem%.c}; \
-		obj=$(TEST_OBJDIR)/$$stem.o; \
-		exe=$(TEST_EXEDIR)/$$stem.exe; \
+		obj=test/$$stem.o; \
+		exe=test/$$stem.exe; \
 		./chibicc -Iinclude -Itest -c -o $$obj $$src || exit 1; \
 		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
 			|| exit 1; \
 	done
-	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
+	for i in $(TESTS); do echo $$i; ./$$i || exit 1; echo; done
 	test/driver.sh ./chibicc
 ```
 
-`TEST_SRCS` is the semantic list of direct `test/*.c` programs. `TEST_OBJDIR`
-receives test objects such as `test/.o/arith.o`, and `TEST_EXEDIR` receives
-test executables such as `test/.exe/arith.exe`. `TESTS` maps each test source
-to the executable path with the same stem.
+`TEST_SRCS` is the semantic list of direct `test/*.c` programs. `TESTS` maps
+each test source to its direct executable path with the same stem, so
+`test/arith.c` becomes `test/arith.exe`.
 
 `TEST_LINK_CC` defaults to `$(CC)` but can be overridden by the outer
 orchestrator when compiler-building and test-linking need different drivers.
 
 `test-compiler` depends on `chibicc`, so the local compiler file is rebuilt
-before test objects are compiled. The recipe creates the test object and
-executable directories, then loops over `$(TEST_SRCS)`.
+before test objects are compiled. The recipe loops over `$(TEST_SRCS)`.
 
 For each source, `$${src#test/}` removes the leading `test/`, and
 `$${stem%.c}` removes the `.c` suffix. `test/arith.c` therefore becomes the
-stem `arith`, the object path `test/.o/arith.o`, and the executable path
-`test/.exe/arith.exe`.
+stem `arith`, the object path `test/arith.o`, and the executable path
+`test/arith.exe`.
 
 The compile step always uses the local stage compiler with the stage-local
 `include/` and `test/` directories. The link step combines the test object
-with `test/shared/common.c` and writes the executable to `$(TEST_EXEDIR)`.
+with `test/shared/common.c` and writes the executable next to the test source.
 Each command exits the loop immediately on failure.
 
-After the loop, the target runs each `test/.exe/*.exe` program, printing the
-executable path before running it, and then runs `test/driver.sh` against the
-local `./chibicc`.
+After the loop, the target runs each executable in `$(TESTS)`, printing the
+path before running it, and then runs `test/driver.sh` against the local
+`./chibicc`.
 
 The link step uses `$(TEST_LINK_CC)` without `$(CFLAGS)`, so stage 1 test
 helper warnings do not become `-Werror` failures. Stage 2 overrides
@@ -335,9 +327,10 @@ clean:
 ```
 
 `clean` removes local direct-stage outputs, extracted stage trees, source
-archives, temporary test outputs, and stale root `stage2` output from the old
-layout. The final `find` removes backup files and any leftover object files
-outside the current directory layout.
+archives, temporary test outputs, and stale directories from previous output
+layouts such as `.o`, `test/.o`, `test/.exe`, and root `stage2`. The final
+`find` removes backup files and any leftover object files outside the current
+directory layout.
 
 Command targets are phony. Real file targets such as `chibicc`,
 `$(SRC_DIST)`, `$(STAGE1_CHIBICC)`, and `$(STAGE2_CHIBICC)` are left as

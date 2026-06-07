@@ -15,47 +15,37 @@ COMPILER_SRCS=\
 	type.c \
 	unicode.c
 
-OBJDIR=.o
-OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
+OBJS=$(COMPILER_SRCS:.c=.o)
 
 chibicc: $(OBJS)
 	$(CC) $(CFLAGS) -o chibicc $(OBJS) $(LDFLAGS)
 
-$(OBJDIR)/codegen.o: codegen.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/codegen.o codegen.c
+codegen.o: codegen.c chibicc.h
+	$(CC) $(CFLAGS) -c -o codegen.o codegen.c
 
-$(OBJDIR)/hashmap.o: hashmap.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/hashmap.o hashmap.c
+hashmap.o: hashmap.c chibicc.h
+	$(CC) $(CFLAGS) -c -o hashmap.o hashmap.c
 
-$(OBJDIR)/main.o: main.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/main.o main.c
+main.o: main.c chibicc.h
+	$(CC) $(CFLAGS) -c -o main.o main.c
 
-$(OBJDIR)/parse.o: parse.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/parse.o parse.c
+parse.o: parse.c chibicc.h
+	$(CC) $(CFLAGS) -c -o parse.o parse.c
 
-$(OBJDIR)/preprocess.o: preprocess.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/preprocess.o preprocess.c
+preprocess.o: preprocess.c chibicc.h
+	$(CC) $(CFLAGS) -c -o preprocess.o preprocess.c
 
-$(OBJDIR)/strings.o: strings.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/strings.o strings.c
+strings.o: strings.c chibicc.h
+	$(CC) $(CFLAGS) -c -o strings.o strings.c
 
-$(OBJDIR)/tokenize.o: tokenize.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/tokenize.o tokenize.c
+tokenize.o: tokenize.c chibicc.h
+	$(CC) $(CFLAGS) -c -o tokenize.o tokenize.c
 
-$(OBJDIR)/type.o: type.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/type.o type.c
+type.o: type.c chibicc.h
+	$(CC) $(CFLAGS) -c -o type.o type.c
 
-$(OBJDIR)/unicode.o: unicode.c chibicc.h
-	mkdir -p $(OBJDIR)
-	$(CC) $(CFLAGS) -c -o $(OBJDIR)/unicode.o unicode.c
+unicode.o: unicode.c chibicc.h
+	$(CC) $(CFLAGS) -c -o unicode.o unicode.c
 
 TEST_SRCS=\
 	test/alignof.c \
@@ -100,23 +90,20 @@ TEST_SRCS=\
 	test/variable.c \
 	test/vla.c
 
-TEST_OBJDIR=test/.o
-TEST_EXEDIR=test/.exe
-TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
+TESTS=$(TEST_SRCS:.c=.exe)
 TEST_LINK_CC?=$(CC)
 
 test-compiler: chibicc
-	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
 		stem=$${stem%.c}; \
-		obj=$(TEST_OBJDIR)/$$stem.o; \
-		exe=$(TEST_EXEDIR)/$$stem.exe; \
+		obj=test/$$stem.o; \
+		exe=test/$$stem.exe; \
 		./chibicc -Iinclude -Itest -c -o $$obj $$src || exit 1; \
 		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
 			|| exit 1; \
 	done
-	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
+	for i in $(TESTS); do echo $$i; ./$$i || exit 1; echo; done
 	test/driver.sh ./chibicc
 
 SRC_DIST?=.make/chibicc.tar.gz
