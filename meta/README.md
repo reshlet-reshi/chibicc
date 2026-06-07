@@ -7,7 +7,6 @@
 | `branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
 | `lint.py` | Reviewed | Python orchestrator for ShellCheck, strict mypy, meta README validation, and manifest validation. |
 | `lint.sh` | Reviewed | Self-locating Bash bootstrap for type-checking and invoking `meta/lint.py`. |
-| `manifest.ignore.md` | Reviewed | Defines the omission contract for files intentionally left out of the repository manifest. |
-| `manifest.md` | Reviewed | Positive manifest of tracked repository files outside `meta/`. |
-| `manifest.py` | Reviewed | Enforces the repository manifest against the manifest ignore contract. |
+| `manifest.md` | Reviewed | Positive manifest of tracked repository files outside `meta/` and its omission contract. |
+| `manifest.py` | Reviewed | Enforces the repository manifest against its embedded omission contract. |
 | `readme.py` | Reviewed | Enforces this local metadata manifest against tracked `meta/` files. |

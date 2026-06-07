@@ -10,7 +10,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "meta" / "manifest.md"
-IGNORE = ROOT / "meta" / "manifest.ignore.md"
 
 
 def git(args: Sequence[str]) -> bytes:
@@ -98,12 +97,12 @@ def report(title: str, paths: Sequence[str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Validate meta/manifest.md against meta/manifest.ignore.md",
+        description="Validate meta/manifest.md against its embedded ignore rules",
     )
     parser.parse_args()
 
     tracked = git_paths(["ls-files"])
-    allowed_omissions = ignored_by_manifest(extract_gitignore_block(IGNORE))
+    allowed_omissions = ignored_by_manifest(extract_gitignore_block(MANIFEST))
     allowed_omissions |= ignored_by_root_gitignore()
     required = tracked - allowed_omissions
     listed = manifest_paths(MANIFEST)
