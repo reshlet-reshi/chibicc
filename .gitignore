@@ -8,5 +8,8 @@
 /tmp*
 /thirdparty
 /chibicc
+/test/.exe/
+/test/.o/
 /test/*.exe
+/.o/
 /stage2

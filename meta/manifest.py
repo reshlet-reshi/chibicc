@@ -156,7 +156,9 @@ def main() -> None:
     )
     parser.parse_args()
 
-    tracked = git_paths(["ls-files"])
+    tracked = {
+        path for path in git_paths(["ls-files"]) if (ROOT / path).exists()
+    }
     allowed_omissions = ignored_by_manifest(extract_gitignore_block(MANIFEST))
     allowed_omissions |= ignored_by_root_gitignore()
     required = tracked - allowed_omissions

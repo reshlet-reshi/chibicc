@@ -12,6 +12,7 @@ ROOT = META.parent
 MYPY_CACHE = Path("/tmp/chibicc-mypy-cache")
 EXTRA_LINTS = META / "lint.md"
 REPLICA = Path("meta/replica")
+MAKEFILE = ROOT / "Makefile"
 MYPY_CONFIG = Path("meta/mypy.ini")
 ALLOWED_EXTENSIONLESS = {"LICENSE", "Makefile"}
 SHELL_EXTENSIONS = {".sh", ".sh.inc"}
@@ -20,7 +21,6 @@ NOOP_EXTENSIONS = {
     ".gitignore",
     ".h",
     ".md",
-    ".mk",
 }
 RECOGNIZED_EXTENSIONS = NOOP_EXTENSIONS | SHELL_EXTENSIONS | {".ini", ".py"}
 
@@ -58,6 +58,29 @@ def git_visible_paths() -> set[Path]:
     }
 
 
+def git_source_dist_paths() -> set[Path]:
+    proc = subprocess.run(
+        ["git", "ls-files", "-z", "--", ".", ":!meta", ":!.gitignore"],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if proc.returncode:
+        sys.stderr.write(proc.stderr.decode())
+        raise SystemExit(proc.returncode)
+    if not proc.stdout:
+        return set()
+    return {
+        path
+        for path in (
+            Path(path.decode())
+            for path in proc.stdout.rstrip(b"\0").split(b"\0")
+        )
+        if (ROOT / path).exists()
+    }
+
+
 def walk_visible_files() -> list[Path]:
     visible = git_visible_paths()
     walked: list[Path] = []
@@ -85,6 +108,80 @@ def full_extension(path: Path) -> str:
 
 def is_replica_path(path: Path) -> bool:
     return path == REPLICA or REPLICA in path.parents
+
+
+def make_assignment_value(line: str, variable: str) -> str | None:
+    if not line.startswith(variable):
+        return None
+
+    rest = line[len(variable) :].lstrip()
+    for operator in (":=", "+=", "?=", "="):
+        if rest.startswith(operator):
+            return rest[len(operator) :].lstrip()
+
+    return None
+
+
+def make_variable_words(path: Path, variable: str) -> list[str]:
+    chunks: list[str] = []
+    collecting = False
+
+    for line in path.read_text().splitlines():
+        if not collecting:
+            value = make_assignment_value(line, variable)
+            if value is None:
+                continue
+            chunk = value.rstrip()
+        else:
+            chunk = line.rstrip()
+
+        if chunk.endswith("\\"):
+            chunks.append(chunk[:-1])
+            collecting = True
+            continue
+
+        chunks.append(chunk)
+        collecting = False
+        break
+
+    if not chunks:
+        print(f"missing Makefile variable: {variable}", file=sys.stderr)
+        raise SystemExit(1)
+
+    return " ".join(chunks).split()
+
+
+def check_source_dist_files() -> None:
+    dist_files = [
+        Path(word) for word in make_variable_words(MAKEFILE, "DIST_FILES")
+    ]
+    duplicates = sorted(
+        {path for path in dist_files if dist_files.count(path) > 1},
+    )
+    if duplicates:
+        print("duplicate DIST_FILES entries:", file=sys.stderr)
+        for path in duplicates:
+            print(f"  {path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    listed = set(dist_files)
+    tracked = git_source_dist_paths()
+    missing = sorted(tracked - listed)
+    unknown = sorted(listed - tracked)
+
+    if not missing and not unknown:
+        return
+
+    print("source distribution file list mismatch:", file=sys.stderr)
+    if missing:
+        print("  missing DIST_FILES entries:", file=sys.stderr)
+        for path in missing:
+            print(f"    {path}", file=sys.stderr)
+    if unknown:
+        print("  unknown DIST_FILES entries:", file=sys.stderr)
+        for path in unknown:
+            print(f"    {path}", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def extra_lints(path: Path) -> list[Path]:
@@ -222,6 +319,8 @@ def lint_file(path: Path, python_paths: list[Path]) -> None:
 
 
 def main() -> None:
+    check_source_dist_files()
+
     files = [
         path for path in walk_visible_files() if not is_replica_path(path)
     ]

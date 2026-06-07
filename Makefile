@@ -3,91 +3,227 @@ export CFLAGS
 
 STAGE1=.make/stage1
 STAGE2=.make/stage2
-CHIBICC=$(STAGE1)/chibicc
+STAGE1_CHIBICC=$(STAGE1)/chibicc
 STAGE2_CHIBICC=$(STAGE2)/chibicc
 DEFAULT_SRC_DIST=.make/chibicc.tar.gz
 SRC_DIST?=$(DEFAULT_SRC_DIST)
 SRC_DIST_ROOT=chibicc
 SRC_DIST_LIST=.make/src-dist.files
-SRC_DIST_INPUTS=$(shell git ls-files -- . ':!meta' ':!.gitignore')
-ROOT_SRC_INPUTS=$(foreach path,$(SRC_DIST_INPUTS),\
-	$(if $(findstring /,$(path)),,$(path)))
-TEST_SRC_INPUTS=$(foreach path,$(SRC_DIST_INPUTS),\
-	$(if $(filter test/%,$(path)),\
-		$(if $(findstring /,$(patsubst test/%,%,$(path))),,$(path))))
-STAGE_SRCS=$(filter %.c,$(ROOT_SRC_INPUTS))
-STAGE_TEST_SRCS=$(filter %.c,$(TEST_SRC_INPUTS))
+
+DIST_FILES=\
+	LICENSE \
+	Makefile \
+	README.md \
+	chibicc.h \
+	codegen.c \
+	hashmap.c \
+	include/float.h \
+	include/stdalign.h \
+	include/stdarg.h \
+	include/stdatomic.h \
+	include/stdbool.h \
+	include/stddef.h \
+	include/stdnoreturn.h \
+	main.c \
+	parse.c \
+	preprocess.c \
+	strings.c \
+	test/alignof.c \
+	test/alloca.c \
+	test/arith.c \
+	test/asm.c \
+	test/atomic.c \
+	test/attribute.c \
+	test/bitfield.c \
+	test/builtin.c \
+	test/cast.c \
+	test/commonsym.c \
+	test/compat.c \
+	test/complit.c \
+	test/const.c \
+	test/constexpr.c \
+	test/control.c \
+	test/decl.c \
+	test/driver.sh \
+	test/enum.c \
+	test/extern.c \
+	test/float.c \
+	test/function.c \
+	test/generic.c \
+	test/include1.h \
+	test/include2.h \
+	test/include3.h \
+	test/include4.h \
+	test/initializer.c \
+	test/line.c \
+	test/literal.c \
+	test/macro.c \
+	test/offsetof.c \
+	test/pointer.c \
+	test/pragma-once.c \
+	test/shared/common.c \
+	test/sizeof.c \
+	test/stdhdr.c \
+	test/string.c \
+	test/struct.c \
+	test/test.h \
+	test/thirdparty/common.sh.inc \
+	test/thirdparty/cpython.sh \
+	test/thirdparty/git.sh \
+	test/thirdparty/libpng.sh \
+	test/thirdparty/sqlite.sh \
+	test/thirdparty/tinycc.sh \
+	test/tls.c \
+	test/typedef.c \
+	test/typeof.c \
+	test/unicode.c \
+	test/union.c \
+	test/usualconv.c \
+	test/varargs.c \
+	test/variable.c \
+	test/vla.c \
+	tokenize.c \
+	type.c \
+	unicode.c
+
+COMPILER_SRCS=\
+	codegen.c \
+	hashmap.c \
+	main.c \
+	parse.c \
+	preprocess.c \
+	strings.c \
+	tokenize.c \
+	type.c \
+	unicode.c
+
+TEST_SRCS=\
+	test/alignof.c \
+	test/alloca.c \
+	test/arith.c \
+	test/asm.c \
+	test/atomic.c \
+	test/attribute.c \
+	test/bitfield.c \
+	test/builtin.c \
+	test/cast.c \
+	test/commonsym.c \
+	test/compat.c \
+	test/complit.c \
+	test/const.c \
+	test/constexpr.c \
+	test/control.c \
+	test/decl.c \
+	test/enum.c \
+	test/extern.c \
+	test/float.c \
+	test/function.c \
+	test/generic.c \
+	test/initializer.c \
+	test/line.c \
+	test/literal.c \
+	test/macro.c \
+	test/offsetof.c \
+	test/pointer.c \
+	test/pragma-once.c \
+	test/sizeof.c \
+	test/stdhdr.c \
+	test/string.c \
+	test/struct.c \
+	test/tls.c \
+	test/typedef.c \
+	test/typeof.c \
+	test/unicode.c \
+	test/union.c \
+	test/usualconv.c \
+	test/varargs.c \
+	test/variable.c \
+	test/vla.c
+
+LOCAL_CHIBICC=chibicc
+OBJDIR=.o
+OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
+TEST_OBJDIR=test/.o
+TEST_EXEDIR=test/.exe
+TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
+TEST_LINK_CC?=$(CC)
 
 # Stage 1
 
-$(CHIBICC): $(DEFAULT_SRC_DIST)
-	$(MAKE) -f stage.mk STAGE=$(STAGE1) \
-		SRC_DIST=$(abspath $(DEFAULT_SRC_DIST)) \
-		SRC_DIST_ROOT=$(SRC_DIST_ROOT) \
-		'STAGE_SRCS=$(STAGE_SRCS)' \
-		'STAGE_TEST_SRCS=$(STAGE_TEST_SRCS)' \
-		'STAGE_CC=$(CC) $(CFLAGS)' \
-		'STAGE_TEST_CC=./chibicc -Iinclude -Itest' \
-		compiler
+$(STAGE1_CHIBICC): $(STAGE1)/.src-ready
+	$(MAKE) -C $(STAGE1) stage-compiler
 
-test: $(DEFAULT_SRC_DIST)
-	$(MAKE) -f stage.mk STAGE=$(STAGE1) \
-		SRC_DIST=$(abspath $(DEFAULT_SRC_DIST)) \
-		SRC_DIST_ROOT=$(SRC_DIST_ROOT) \
-		'STAGE_SRCS=$(STAGE_SRCS)' \
-		'STAGE_TEST_SRCS=$(STAGE_TEST_SRCS)' \
-		'STAGE_CC=$(CC) $(CFLAGS)' \
-		'STAGE_TEST_CC=./chibicc -Iinclude -Itest' \
-		test
+test: $(STAGE1)/.src-ready
+	$(MAKE) -C $(STAGE1) stage-test
 
 test-all: test test-stage2
 
 # Stage 2
 
-$(STAGE2_CHIBICC): $(CHIBICC) $(DEFAULT_SRC_DIST)
-	$(MAKE) -f stage.mk STAGE=$(STAGE2) \
-		SRC_DIST=$(abspath $(DEFAULT_SRC_DIST)) \
-		SRC_DIST_ROOT=$(SRC_DIST_ROOT) \
-		'STAGE_SRCS=$(STAGE_SRCS)' \
-		'STAGE_TEST_SRCS=$(STAGE_TEST_SRCS)' \
-		'STAGE_CC=$(abspath $(CHIBICC)) -Iinclude' \
-		'STAGE_TEST_CC=./chibicc -Iinclude -Itest' \
-		STAGE_OBJ_DEPS=$(abspath $(CHIBICC)) \
-		compiler
+$(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
+	$(MAKE) -C $(STAGE2) 'CC=$(abspath $(STAGE1_CHIBICC)) -Iinclude' \
+		CFLAGS= stage-compiler
 
-test-stage2: $(CHIBICC) $(DEFAULT_SRC_DIST)
-	$(MAKE) -f stage.mk STAGE=$(STAGE2) \
-		SRC_DIST=$(abspath $(DEFAULT_SRC_DIST)) \
-		SRC_DIST_ROOT=$(SRC_DIST_ROOT) \
-		'STAGE_SRCS=$(STAGE_SRCS)' \
-		'STAGE_TEST_SRCS=$(STAGE_TEST_SRCS)' \
-		'STAGE_CC=$(abspath $(CHIBICC)) -Iinclude' \
-		'STAGE_TEST_CC=./chibicc -Iinclude -Itest' \
-		STAGE_OBJ_DEPS=$(abspath $(CHIBICC)) \
-		test
+test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
+	$(MAKE) -C $(STAGE2) 'CC=$(abspath $(STAGE1_CHIBICC)) -Iinclude' \
+		'TEST_LINK_CC=$(CC)' CFLAGS= stage-test
+
+# Stage extraction
+
+$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(DEFAULT_SRC_DIST)
+	@case '$(@D)' in .make/*) ;; \
+		*) echo 'refusing to prepare stage outside .make' >&2; exit 1;; \
+	esac
+	rm -rf $(@D) $(@D).unpack
+	mkdir -p $(@D).unpack
+	tar -xzf $(DEFAULT_SRC_DIST) -C $(@D).unpack
+	mv $(@D).unpack/$(SRC_DIST_ROOT) $(@D)
+	rm -rf $(@D).unpack
+	touch $@
+
+# Local stage build
+
+stage-compiler: $(LOCAL_CHIBICC)
+
+$(LOCAL_CHIBICC): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+$(OBJDIR)/%.o: %.c chibicc.h
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+stage-test: $(TESTS)
+	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
+	test/driver.sh ./$(LOCAL_CHIBICC)
+
+$(TEST_EXEDIR)/%.exe: $(LOCAL_CHIBICC) test/%.c test/shared/common.c
+	mkdir -p $(@D) $(TEST_OBJDIR)
+	./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $(TEST_OBJDIR)/$*.o test/$*.c
+	$(TEST_LINK_CC) -pthread -o $@ $(TEST_OBJDIR)/$*.o test/shared/common.c
 
 # Misc.
 
 src-dist: $(SRC_DIST)
 
-$(DEFAULT_SRC_DIST): $(SRC_DIST_INPUTS)
-	mkdir -p $(dir $@) .make
-	git ls-files -z -- . ':!meta' ':!.gitignore' > $(SRC_DIST_LIST)
+$(DEFAULT_SRC_DIST): $(DIST_FILES)
+	mkdir -p $(dir $@) $(dir $(SRC_DIST_LIST))
+	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
 	tar --null -T $(SRC_DIST_LIST) \
 		--transform='s,^,$(SRC_DIST_ROOT)/,' \
 		-czf $@
 
 ifneq ($(SRC_DIST),$(DEFAULT_SRC_DIST))
-$(SRC_DIST): $(SRC_DIST_INPUTS)
-	mkdir -p $(dir $@) .make
-	git ls-files -z -- . ':!meta' ':!.gitignore' > $(SRC_DIST_LIST)
+$(SRC_DIST): $(DIST_FILES)
+	mkdir -p $(dir $@) $(dir $(SRC_DIST_LIST))
+	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
 	tar --null -T $(SRC_DIST_LIST) \
 		--transform='s,^,$(SRC_DIST_ROOT)/,' \
 		-czf $@
 endif
 
 clean:
-	rm -rf chibicc .make tmp* test/*.s test/*.exe stage2
+	rm -rf chibicc .make .o tmp* test/.exe test/.o test/*.s test/*.exe
+	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: test clean test-stage2 test-all src-dist
+.PHONY: clean src-dist stage-compiler stage-test test test-all test-stage2

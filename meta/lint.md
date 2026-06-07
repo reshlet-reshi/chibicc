@@ -7,8 +7,12 @@ extension. Unrecognized extensions are lint findings; extensionless files are
 allowed only when named `LICENSE` or `Makefile`. Extension dispatch skips
 `meta/replica/`, whose exact file set is validated by `meta/manifest.py`.
 The only allowed `.ini` file is `meta/mypy.ini`, which is validated by mypy
-itself. Python files are checked by Ruff and mypy. Make fragments with `.mk`
-are recognized by extension dispatch but are not deeply linted yet.
+itself. Python files are checked by Ruff and mypy.
+
+`lint.py` also compares the tracked non-`meta/` file set, intentionally
+omitting `.gitignore`, against the root `Makefile` `DIST_FILES` list. New
+source distribution inputs must therefore be added to that explicit list or to
+an explicit omission policy.
 
 After per-file dispatch succeeds, `lint.py` runs these extra metadata
 validators.
