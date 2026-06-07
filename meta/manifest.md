@@ -28,19 +28,31 @@ meta/
 *.h
 ```
 
-| Path | Replica |
-| --- | --- |
-| `.gitignore` | [meta/replica/.gitignore.md](replica/.gitignore.md) |
-| `AGENTS.md` | [meta/replica/AGENTS.md.md](replica/AGENTS.md.md) |
-| `LICENSE` | [meta/replica/LICENSE.md](replica/LICENSE.md) |
-| `Makefile` | [meta/replica/Makefile.md](replica/Makefile.md) |
-| `mypy.ini` | [meta/replica/mypy.ini.md](replica/mypy.ini.md) |
-| `README.md` | [meta/replica/README.md.md](replica/README.md.md) |
-| `reset.sh` | [meta/replica/reset.sh.md](replica/reset.sh.md) |
-| `test/driver.sh` | [meta/replica/test/driver.sh.md](replica/test/driver.sh.md) |
-| `test/thirdparty/common.sh.inc` | [meta/replica/test/thirdparty/common.sh.inc.md](replica/test/thirdparty/common.sh.inc.md) |
-| `test/thirdparty/cpython.sh` | [meta/replica/test/thirdparty/cpython.sh.md](replica/test/thirdparty/cpython.sh.md) |
-| `test/thirdparty/git.sh` | [meta/replica/test/thirdparty/git.sh.md](replica/test/thirdparty/git.sh.md) |
-| `test/thirdparty/libpng.sh` | [meta/replica/test/thirdparty/libpng.sh.md](replica/test/thirdparty/libpng.sh.md) |
-| `test/thirdparty/sqlite.sh` | [meta/replica/test/thirdparty/sqlite.sh.md](replica/test/thirdparty/sqlite.sh.md) |
-| `test/thirdparty/tinycc.sh` | [meta/replica/test/thirdparty/tinycc.sh.md](replica/test/thirdparty/tinycc.sh.md) |
+- `.gitignore`
+  - [meta/replica/.gitignore.md](replica/.gitignore.md)
+- `AGENTS.md`
+  - [meta/replica/AGENTS.md.md](replica/AGENTS.md.md)
+- `LICENSE`
+  - [meta/replica/LICENSE.md](replica/LICENSE.md)
+- `Makefile`
+  - [meta/replica/Makefile.md](replica/Makefile.md)
+- `mypy.ini`
+  - [meta/replica/mypy.ini.md](replica/mypy.ini.md)
+- `README.md`
+  - [meta/replica/README.md.md](replica/README.md.md)
+- `reset.sh`
+  - [meta/replica/reset.sh.md](replica/reset.sh.md)
+- `test/driver.sh`
+  - [meta/replica/test/driver.sh.md](replica/test/driver.sh.md)
+- `test/thirdparty/common.sh.inc`
+  - [meta/replica/test/thirdparty/common.sh.inc.md](replica/test/thirdparty/common.sh.inc.md)
+- `test/thirdparty/cpython.sh`
+  - [meta/replica/test/thirdparty/cpython.sh.md](replica/test/thirdparty/cpython.sh.md)
+- `test/thirdparty/git.sh`
+  - [meta/replica/test/thirdparty/git.sh.md](replica/test/thirdparty/git.sh.md)
+- `test/thirdparty/libpng.sh`
+  - [meta/replica/test/thirdparty/libpng.sh.md](replica/test/thirdparty/libpng.sh.md)
+- `test/thirdparty/sqlite.sh`
+  - [meta/replica/test/thirdparty/sqlite.sh.md](replica/test/thirdparty/sqlite.sh.md)
+- `test/thirdparty/tinycc.sh`
+  - [meta/replica/test/thirdparty/tinycc.sh.md](replica/test/thirdparty/tinycc.sh.md)
