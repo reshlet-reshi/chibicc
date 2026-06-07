@@ -148,6 +148,22 @@ def report_unrecognized_files(findings: dict[str, list[Path]]) -> None:
             print(f"    {path}", file=sys.stderr)
 
 
+def lint_ruff(paths: Sequence[Path]) -> None:
+    if not paths:
+        return
+
+    run(
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "check",
+            "--no-cache",
+            *[str(path) for path in paths],
+        ],
+    )
+
+
 def lint_python(paths: Sequence[Path]) -> None:
     if not paths:
         return
@@ -216,6 +232,7 @@ def main() -> None:
     python_paths: list[Path] = []
     for path in files:
         lint_file(path, python_paths)
+    lint_ruff(python_paths)
     lint_python(python_paths)
 
     for script in extra_lints(EXTRA_LINTS):
