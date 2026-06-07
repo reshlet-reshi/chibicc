@@ -15,8 +15,8 @@ omitting `.gitignore` and `.gitmodules`, against the root `Makefile`
 that explicit list or to an explicit omission policy.
 
 Build and test validation uses `meta/pdpmake.sh`, the repository-local wrapper
-around the pdpmake submodule. The full pdpmake stage test is part of this lint
-contract through the extra executable list below.
+around the pdpmake submodule. The full pdpmake `test-all` gate is part of
+this lint contract through the extra executable list below.
 
 After per-file dispatch succeeds, `lint.py` runs these extra metadata
 validators.

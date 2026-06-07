@@ -13,5 +13,4 @@ cleanup() {
 trap cleanup EXIT
 
 "$pdpmake" clean
-"$pdpmake" test
-"$pdpmake" test-stage2
+"$pdpmake" test-all

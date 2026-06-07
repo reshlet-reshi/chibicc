@@ -109,7 +109,7 @@ TEST_LINK_CC?=$(CC)
 
 # Default
 
-default: $(STAGE1_CHIBICC)
+default: stage-compiler
 
 # Source distribution
 

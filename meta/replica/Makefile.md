@@ -140,7 +140,7 @@ orchestrator when compiler-building and test-linking need different drivers.
 ```make
 # Default
 
-default: $(STAGE1_CHIBICC)
+default: stage-compiler
 
 # Source distribution
 
@@ -154,16 +154,16 @@ $(SRC_DIST): $(DIST_FILES)
 src-dist: $(SRC_DIST)
 ```
 
-The first real target is `default`, so plain `make` builds the stage 1
-compiler through that named target. `default` depends on
-`$(STAGE1_CHIBICC)`, which remains the real file target for the generated
-stage 1 compiler. This keeps the default build small while leaving room for a
-future `all` target to collect broader work.
+The first target is `default`, so plain `make` builds the local compiler
+through that named target. `default` depends on `stage-compiler`, the phony
+local-stage command target that writes root `./chibicc` and `.o/*.o` outputs.
+This keeps the default build lightweight while leaving `test-all` as the
+full "does everything work right now?" gate.
 
-The next real target is `$(SRC_DIST)`, the source archive file target. By
-default it creates `.make/chibicc.tar.gz`; callers can override `SRC_DIST` to
-write somewhere else. Stage extraction also depends on `$(SRC_DIST)`, so the
-same override chooses the archive path used by stage builds.
+The next real file target is `$(SRC_DIST)`, the source archive file target.
+By default it creates `.make/chibicc.tar.gz`; callers can override `SRC_DIST`
+to write somewhere else. Stage extraction also depends on `$(SRC_DIST)`, so
+the same override chooses the archive path used by stage builds.
 
 The archive target depends on every `DIST_FILES` entry. The recipe creates
 the output directory and the temporary list directory with shell `dirname`
