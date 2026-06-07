@@ -17,9 +17,11 @@ documentation notes; individual replica files are intentionally not listed here.
   - Branch inventory, including local unpushed archive and WIP branches.
 - `branches.py`
   - Enforces branch manifest entries against local and remote Git refs.
+- `lint.md`
+  - Configures extra executable metadata validators for `meta/lint.py`.
 - `lint.py`
-  - Python orchestrator for ShellCheck, strict mypy, meta README validation,
-    branch manifest validation, and manifest validation.
+  - Python orchestrator for ShellCheck, strict mypy, and configured extra
+    metadata validators.
 - `lint.sh`
   - Self-locating Bash bootstrap for type-checking and invoking `meta/lint.py`.
 - `manifest.md`

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -8,6 +9,7 @@ from pathlib import Path
 META = Path(__file__).resolve().parent
 ROOT = META.parent
 MYPY_CACHE = Path("/tmp/chibicc-mypy-cache")
+EXTRA_LINTS = META / "lint.md"
 
 
 def run(command: Sequence[str]) -> None:
@@ -41,6 +43,36 @@ def git_visible_paths(patterns: Sequence[str]) -> list[str]:
     return [path.decode() for path in proc.stdout.rstrip(b"\0").split(b"\0")]
 
 
+def extra_lints(path: Path) -> list[Path]:
+    scripts: list[str] = []
+    item_re = re.compile(r"^- `([^`]+)`$")
+
+    for line in path.read_text().splitlines():
+        match = item_re.match(line)
+        if match:
+            scripts.append(match.group(1))
+
+    duplicates = sorted(
+        {script for script in scripts if scripts.count(script) > 1},
+    )
+    if duplicates:
+        print("duplicate extra lint entries:", file=sys.stderr)
+        for script in duplicates:
+            print(f"  {script}", file=sys.stderr)
+        raise SystemExit(1)
+
+    absolute = sorted(
+        [script for script in scripts if Path(script).is_absolute()],
+    )
+    if absolute:
+        print("absolute extra lint entries:", file=sys.stderr)
+        for script in absolute:
+            print(f"  {script}", file=sys.stderr)
+        raise SystemExit(1)
+
+    return [ROOT / script for script in scripts]
+
+
 def main() -> None:
     shell_files = git_visible_paths(["*.sh", "*.sh.inc"])
     if shell_files:
@@ -61,9 +93,8 @@ def main() -> None:
             ],
         )
 
-    run([sys.executable, str(META / "README.py")])
-    run([sys.executable, str(META / "branches.py")])
-    run([sys.executable, str(META / "manifest.py")])
+    for script in extra_lints(EXTRA_LINTS):
+        run([str(script)])
 
 
 if __name__ == "__main__":
