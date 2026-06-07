@@ -20,8 +20,8 @@ documentation notes; individual replica files are intentionally not listed here.
 - `lint.md`
   - Configures extra executable metadata validators for `meta/lint.py`.
 - `lint.py`
-  - Python orchestrator for ShellCheck, strict mypy, and configured extra
-    metadata validators.
+  - Walks Git-visible files, dispatches extension-based lints, and runs
+    configured metadata validators.
 - `lint.sh`
   - Self-locating Bash bootstrap for type-checking and invoking `meta/lint.py`.
 - `manifest.md`

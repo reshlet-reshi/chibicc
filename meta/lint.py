@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import re
 import subprocess
 import sys
@@ -10,6 +11,21 @@ META = Path(__file__).resolve().parent
 ROOT = META.parent
 MYPY_CACHE = Path("/tmp/chibicc-mypy-cache")
 EXTRA_LINTS = META / "lint.md"
+ALLOWED_EXTENSIONLESS = {"LICENSE", "Makefile"}
+SHELL_EXTENSIONS = {".sh", ".sh.inc"}
+NOOP_EXTENSIONS = {
+    ".c",
+    ".gitignore",
+    ".gitignore.md",
+    ".h",
+    ".ini",
+    ".ini.md",
+    ".md",
+    ".md.md",
+    ".sh.inc.md",
+    ".sh.md",
+}
+RECOGNIZED_EXTENSIONS = NOOP_EXTENSIONS | SHELL_EXTENSIONS | {".py"}
 
 
 def run(command: Sequence[str]) -> None:
@@ -18,7 +34,7 @@ def run(command: Sequence[str]) -> None:
         raise SystemExit(proc.returncode)
 
 
-def git_visible_paths(patterns: Sequence[str]) -> list[str]:
+def git_visible_paths() -> set[Path]:
     proc = subprocess.run(
         [
             "git",
@@ -28,7 +44,6 @@ def git_visible_paths(patterns: Sequence[str]) -> list[str]:
             "--others",
             "-X",
             str(ROOT / ".gitignore"),
-            *patterns,
         ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
@@ -39,8 +54,36 @@ def git_visible_paths(patterns: Sequence[str]) -> list[str]:
         sys.stderr.write(proc.stderr.decode())
         raise SystemExit(proc.returncode)
     if not proc.stdout:
-        return []
-    return [path.decode() for path in proc.stdout.rstrip(b"\0").split(b"\0")]
+        return set()
+    return {
+        Path(path.decode())
+        for path in proc.stdout.rstrip(b"\0").split(b"\0")
+    }
+
+
+def walk_visible_files() -> list[Path]:
+    visible = git_visible_paths()
+    walked: list[Path] = []
+
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        dirnames[:] = sorted(
+            dirname for dirname in dirnames if dirname != ".git"
+        )
+
+        for filename in sorted(filenames):
+            path = Path(dirpath) / filename
+            rel = path.relative_to(ROOT)
+            if rel in visible:
+                walked.append(rel)
+
+    return sorted(walked)
+
+
+def full_extension(path: Path) -> str:
+    index = path.name.find(".")
+    if index == -1:
+        return ""
+    return path.name[index:]
 
 
 def extra_lints(path: Path) -> list[Path]:
@@ -73,25 +116,82 @@ def extra_lints(path: Path) -> list[Path]:
     return [ROOT / script for script in scripts]
 
 
-def main() -> None:
-    shell_files = git_visible_paths(["*.sh", "*.sh.inc"])
-    if shell_files:
-        run(["shellcheck", "-x", "-s", "bash", *shell_files])
+def unrecognized_files(paths: Sequence[Path]) -> dict[str, list[Path]]:
+    findings: dict[str, list[Path]] = {}
 
-    py_files = git_visible_paths(["*.py"])
-    if py_files:
-        run(
-            [
-                sys.executable,
-                "-m",
-                "mypy",
-                "--config-file",
-                str(ROOT / "mypy.ini"),
-                "--cache-dir",
-                str(MYPY_CACHE),
-                *py_files,
-            ],
-        )
+    for path in paths:
+        extension = full_extension(path)
+        if not extension:
+            if path.name in ALLOWED_EXTENSIONLESS:
+                continue
+            findings.setdefault("<extensionless>", []).append(path)
+            continue
+
+        if extension not in RECOGNIZED_EXTENSIONS:
+            findings.setdefault(extension, []).append(path)
+
+    return findings
+
+
+def report_unrecognized_files(findings: dict[str, list[Path]]) -> None:
+    if not findings:
+        return
+
+    print("unrecognized file extensions:", file=sys.stderr)
+    for extension in sorted(findings):
+        print(f"  {extension}:", file=sys.stderr)
+        for path in findings[extension]:
+            print(f"    {path}", file=sys.stderr)
+
+
+def lint_python(paths: Sequence[Path]) -> None:
+    if not paths:
+        return
+
+    run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--config-file",
+            str(ROOT / "mypy.ini"),
+            "--cache-dir",
+            str(MYPY_CACHE),
+            *[str(path) for path in paths],
+        ],
+    )
+
+
+def lint_shell(path: Path) -> None:
+    run(["shellcheck", "-x", "-s", "bash", str(path)])
+
+
+def lint_noop(path: Path) -> None:
+    return
+
+
+def lint_file(path: Path, python_paths: list[Path]) -> None:
+    extension = full_extension(path)
+
+    if extension == ".py":
+        python_paths.append(path)
+    elif extension in SHELL_EXTENSIONS:
+        lint_shell(path)
+    else:
+        lint_noop(path)
+
+
+def main() -> None:
+    files = walk_visible_files()
+    findings = unrecognized_files(files)
+    if findings:
+        report_unrecognized_files(findings)
+        raise SystemExit(1)
+
+    python_paths: list[Path] = []
+    for path in files:
+        lint_file(path, python_paths)
+    lint_python(python_paths)
 
     for script in extra_lints(EXTRA_LINTS):
         run([str(script)])
