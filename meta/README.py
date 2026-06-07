@@ -36,10 +36,10 @@ def git_paths(args: Sequence[str]) -> set[str]:
 
 def readme_paths(path: Path) -> set[str]:
     paths: list[str] = []
-    row_re = re.compile(r"^\| `([^`]+)` \|")
+    item_re = re.compile(r"^- `([^`]+)`$")
 
     for line in path.read_text().splitlines():
-        match = row_re.match(line)
+        match = item_re.match(line)
         if match:
             paths.append(match.group(1))
 
