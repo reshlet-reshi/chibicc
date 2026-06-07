@@ -16,7 +16,7 @@
 | `README.md` | OK | Upstream project overview and design notes. |
 | `reset.sh` | Reviewed | Destructive reset helper with confirmation prompt and repo-directory anchoring. |
 | `test/driver.sh` | Works, noisy | Driver tests pass syntax checks; shellcheck reports legacy quoting/style noise. |
-| `test/thirdparty/common` | Needs fix | Checkout helper should validate standalone Git checkouts before destructive `git reset --hard`. |
+| `test/thirdparty/common.sh.inc` | Needs fix | Checkout helper should validate standalone Git checkouts before destructive `git reset --hard`. |
 | `test/thirdparty/cpython.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
 | `test/thirdparty/git.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
 | `test/thirdparty/libpng.sh` | Needs cleanup | Third-party test uses SSH GitHub URL, which is unfriendly without a GitHub SSH key. |
