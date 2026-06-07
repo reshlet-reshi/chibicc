@@ -24,6 +24,7 @@ TEST_SRCS=$(wildcard test/*.c)
 TEST_OBJDIR=.make/stage1/test/.o
 TEST_EXEDIR=.make/stage1/test/.exe
 TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
+STAGE2_TEST_OBJDIR=stage2/test/.o
 STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
 ```
 
@@ -52,8 +53,9 @@ separate substitution for that build, so `parse.c` contributes
 `TEST_OBJDIR` names the private build directory for stage 1 test objects.
 `TEST_EXEDIR` names the private build directory for stage 1 test executables.
 `TESTS` maps test sources into the executable directory, so `test/arith.c`
-becomes `.make/stage1/test/.exe/arith.exe`. `STAGE2_TESTS` maps the same
-sources to `stage2/test/*.exe` paths for the self-hosted test run.
+becomes `.make/stage1/test/.exe/arith.exe`. `STAGE2_TEST_OBJDIR` names the
+private build directory for stage 2 test objects. `STAGE2_TESTS` maps the
+same sources to `stage2/test/*.exe` paths for the self-hosted test run.
 
 These variables are evaluated by Make before it decides which targets need to
 be rebuilt. Adding a new top-level compiler source or a new `test/*.c` file is
@@ -209,22 +211,24 @@ only creates the compiler object directory.
 
 ```make
 stage2/test/%.exe: stage2/chibicc test/%.c test/shared/common.c
-	mkdir -p stage2/test
-	./stage2/chibicc -Iinclude -Itest -c -o stage2/test/$*.o test/$*.c
-	$(CC) -pthread -o $@ stage2/test/$*.o test/shared/common.c
+	mkdir -p $(@D) $(STAGE2_TEST_OBJDIR)
+	./stage2/chibicc -Iinclude -Itest -c -o $(STAGE2_TEST_OBJDIR)/$*.o test/$*.c
+	$(CC) -pthread -o $@ $(STAGE2_TEST_OBJDIR)/$*.o test/shared/common.c
 ```
 
 This rule is the stage 2 counterpart of the stage 1 test executable rule. It
 uses `stage2/chibicc` to compile each test source and writes the intermediate
-object under `stage2/test/`.
+object under `stage2/test/.o/`.
 
 The prerequisites make the rule sensitive to the stage 2 compiler, the test
 source, and shared test support. `$*` is again the test stem, and `$@` is the
 stage 2 executable path such as `stage2/test/arith.exe`.
 
-The final link still uses the host compiler with `-pthread`, just like stage
-1. The distinction being tested is the compiler used to produce the test
-object, not the system linker.
+The first recipe line creates both stage 2 test output directories. `$(@D)`
+is `stage2/test` for these targets, and `$(STAGE2_TEST_OBJDIR)` is
+`stage2/test/.o`. The final link still uses the host compiler with
+`-pthread`, just like stage 1. The distinction being tested is the compiler
+used to produce the test object, not the system linker.
 
 ## Stage 2 test target
 
@@ -260,8 +264,8 @@ files matching `tmp*`, all discovered stage 1 test executables, stale
 root-adjacent `test/*.exe` outputs, test assembly outputs, and the entire
 `stage2` tree. Removing `.make` clears the current stage 1 compiler, host
 compiler objects, stage 1 test objects, and stage 1 test executables. Removing
-`stage2` clears the stage 2 compiler, `stage2/.o/` compiler objects, and
-`stage2/test/` outputs.
+`stage2` clears the stage 2 compiler, `stage2/.o/` compiler objects,
+`stage2/test/.o/` test objects, and `stage2/test/` executables.
 
 The second command finds editor backup files and object files below the
 repository root and removes them. That cleanup also catches stale `test/*.o`
