@@ -77,7 +77,8 @@ TEST_SRCS=\
 	test/variable.c \
 	test/vla.c
 
-TEST_FILES=$(TEST_SRCS) \
+TEST_FILES=\
+	$(TEST_SRCS) \
 	test/driver.sh \
 	test/include1.h \
 	test/include2.h \
@@ -92,7 +93,10 @@ TEST_FILES=$(TEST_SRCS) \
 	test/thirdparty/sqlite.sh \
 	test/thirdparty/tinycc.sh
 
-DIST_FILES=$(DIST_ROOT_FILES) $(COMPILER_SRCS) $(DIST_INCLUDE_FILES) \
+DIST_FILES=\
+	$(DIST_ROOT_FILES) \
+	$(COMPILER_SRCS) \
+	$(DIST_INCLUDE_FILES) \
 	$(TEST_FILES)
 
 LOCAL_CHIBICC=chibicc
