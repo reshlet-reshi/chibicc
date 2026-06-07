@@ -10,24 +10,33 @@ SRC_DIST?=$(DEFAULT_SRC_DIST)
 SRC_DIST_ROOT=chibicc
 SRC_DIST_LIST=.make/src-dist.files
 
-DIST_FILES=\
+DIST_ROOT_FILES=\
 	LICENSE \
 	Makefile \
 	README.md \
-	chibicc.h \
+	chibicc.h
+
+COMPILER_SRCS=\
 	codegen.c \
 	hashmap.c \
+	main.c \
+	parse.c \
+	preprocess.c \
+	strings.c \
+	tokenize.c \
+	type.c \
+	unicode.c
+
+DIST_INCLUDE_FILES=\
 	include/float.h \
 	include/stdalign.h \
 	include/stdarg.h \
 	include/stdatomic.h \
 	include/stdbool.h \
 	include/stddef.h \
-	include/stdnoreturn.h \
-	main.c \
-	parse.c \
-	preprocess.c \
-	strings.c \
+	include/stdnoreturn.h
+
+TEST_FILES=\
 	test/alignof.c \
 	test/alloca.c \
 	test/arith.c \
@@ -81,64 +90,13 @@ DIST_FILES=\
 	test/usualconv.c \
 	test/varargs.c \
 	test/variable.c \
-	test/vla.c \
-	tokenize.c \
-	type.c \
-	unicode.c
-
-COMPILER_SRCS=\
-	codegen.c \
-	hashmap.c \
-	main.c \
-	parse.c \
-	preprocess.c \
-	strings.c \
-	tokenize.c \
-	type.c \
-	unicode.c
-
-TEST_SRCS=\
-	test/alignof.c \
-	test/alloca.c \
-	test/arith.c \
-	test/asm.c \
-	test/atomic.c \
-	test/attribute.c \
-	test/bitfield.c \
-	test/builtin.c \
-	test/cast.c \
-	test/commonsym.c \
-	test/compat.c \
-	test/complit.c \
-	test/const.c \
-	test/constexpr.c \
-	test/control.c \
-	test/decl.c \
-	test/enum.c \
-	test/extern.c \
-	test/float.c \
-	test/function.c \
-	test/generic.c \
-	test/initializer.c \
-	test/line.c \
-	test/literal.c \
-	test/macro.c \
-	test/offsetof.c \
-	test/pointer.c \
-	test/pragma-once.c \
-	test/sizeof.c \
-	test/stdhdr.c \
-	test/string.c \
-	test/struct.c \
-	test/tls.c \
-	test/typedef.c \
-	test/typeof.c \
-	test/unicode.c \
-	test/union.c \
-	test/usualconv.c \
-	test/varargs.c \
-	test/variable.c \
 	test/vla.c
+
+DIST_FILES=$(DIST_ROOT_FILES) $(COMPILER_SRCS) $(DIST_INCLUDE_FILES) \
+	$(TEST_FILES)
+
+TEST_SRCS=$(foreach path,$(filter test/%.c,$(TEST_FILES)),\
+	$(if $(findstring /,$(patsubst test/%,%,$(path))),,$(path)))
 
 LOCAL_CHIBICC=chibicc
 OBJDIR=.o

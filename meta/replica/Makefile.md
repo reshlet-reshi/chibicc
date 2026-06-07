@@ -42,43 +42,63 @@ under `.make/`, including when `make src-dist` is run from an extracted tree.
 ## Fixed source lists
 
 ```make
-DIST_FILES=\
+DIST_ROOT_FILES=\
 	LICENSE \
 	Makefile \
 	README.md \
-	chibicc.h \
-	codegen.c \
-	...
-	unicode.c
+	chibicc.h
 
 COMPILER_SRCS=\
 	codegen.c \
 	hashmap.c \
-	main.c \
 	...
 	unicode.c
 
-TEST_SRCS=\
+DIST_INCLUDE_FILES=\
+	include/float.h \
+	include/stdalign.h \
+	...
+	include/stdnoreturn.h
+
+TEST_FILES=\
 	test/alignof.c \
 	test/alloca.c \
 	test/arith.c \
+	test/driver.sh \
+	test/include1.h \
+	test/shared/common.c \
+	test/thirdparty/common.sh.inc \
 	...
 	test/vla.c
+
+DIST_FILES=$(DIST_ROOT_FILES) $(COMPILER_SRCS) $(DIST_INCLUDE_FILES) \
+	$(TEST_FILES)
+
+TEST_SRCS=$(foreach path,$(filter test/%.c,$(TEST_FILES)),\
+	$(if $(findstring /,$(patsubst test/%,%,$(path))),,$(path)))
 ```
 
 The source distribution no longer asks Git for a file list at build time.
-`DIST_FILES` is the explicit contract for files that enter the tarball. It
-contains tracked project files outside `meta/` and intentionally omits
-`.gitignore`. Because this list is ordinary Make data, the same archive rule
-works from the repository root and from an extracted source tree that has no
-`.git/` directory.
+`DIST_ROOT_FILES`, `COMPILER_SRCS`, `DIST_INCLUDE_FILES`, and `TEST_FILES`
+are the explicit contract for files that enter the tarball. They contain
+tracked project files outside `meta/` and intentionally omit `.gitignore`.
+Because these lists are ordinary Make data, the same archive rule works from
+the repository root and from an extracted source tree that has no `.git/`
+directory.
 
 `COMPILER_SRCS` is the semantic list of root compiler implementation sources.
 Those files become `$(OBJDIR)/*.o` and then link into `chibicc`.
 
-`TEST_SRCS` is the semantic list of direct `test/*.c` programs. Nested helper
-sources such as `test/shared/common.c` stay in `DIST_FILES` because tests link
-against them, but they are not standalone test executables.
+`TEST_FILES` lists every current distributed file under `test/`, including
+headers, shell scripts, third-party test harnesses, and nested helpers.
+`DIST_FILES` is derived from the smaller lists, so compiler and test files are
+not repeated in one giant manifest.
+
+`TEST_SRCS` is derived from `TEST_FILES` by first taking `test/%.c` entries.
+For each candidate, Make removes the `test/` prefix and checks whether the
+rest still contains `/`. Direct files such as `test/arith.c` become test
+programs. Nested helper sources such as `test/shared/common.c` stay in the
+source distribution but are not standalone test executables.
 
 ## Local stage outputs
 

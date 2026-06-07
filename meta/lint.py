@@ -23,6 +23,7 @@ NOOP_EXTENSIONS = {
     ".md",
 }
 RECOGNIZED_EXTENSIONS = NOOP_EXTENSIONS | SHELL_EXTENSIONS | {".ini", ".py"}
+MAKE_VARIABLE_REF_RE = re.compile(r"^\$\(([A-Za-z0-9_]+)\)$")
 
 
 def run(command: Sequence[str]) -> None:
@@ -122,7 +123,7 @@ def make_assignment_value(line: str, variable: str) -> str | None:
     return None
 
 
-def make_variable_words(path: Path, variable: str) -> list[str]:
+def raw_make_variable_words(path: Path, variable: str) -> list[str]:
     chunks: list[str] = []
     collecting = False
 
@@ -149,6 +150,29 @@ def make_variable_words(path: Path, variable: str) -> list[str]:
         raise SystemExit(1)
 
     return " ".join(chunks).split()
+
+
+def make_variable_words(
+    path: Path,
+    variable: str,
+    seen: set[str] | None = None,
+) -> list[str]:
+    if seen is None:
+        seen = set()
+    if variable in seen:
+        print(f"recursive Makefile variable: {variable}", file=sys.stderr)
+        raise SystemExit(1)
+
+    seen.add(variable)
+    expanded: list[str] = []
+    for word in raw_make_variable_words(path, variable):
+        match = MAKE_VARIABLE_REF_RE.match(word)
+        if match is None:
+            expanded.append(word)
+            continue
+        expanded.extend(make_variable_words(path, match.group(1), seen))
+    seen.remove(variable)
+    return expanded
 
 
 def check_source_dist_files() -> None:
