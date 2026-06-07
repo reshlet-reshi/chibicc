@@ -12,7 +12,6 @@ compiler named `chibicc`, build test executables, and run the driver tests.
 
 ```make
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
-export CFLAGS
 
 STAGE1=.make/stage1
 STAGE2=.make/stage2
@@ -27,8 +26,9 @@ SRC_DIST_LIST=.make/src-dist.files
 `CFLAGS` is the host compiler warning and debug policy. It requests C11,
 debug information, non-common globals, most warnings, and then treats enabled
 warnings as errors. `-Wno-switch` stays before `-Werror`, so switch warnings
-remain explicitly disabled. The variable is exported so recursive Make calls
-inherit the same flag policy when it is folded into a compiler command.
+remain explicitly disabled. Recursive Make calls read this default from the
+extracted Makefile, while command-line `CFLAGS=...` overrides still propagate
+through GNU Make's normal `MAKEFLAGS` handling.
 
 `STAGE1` and `STAGE2` are extracted source roots under `.make/`.
 `STAGE1_CHIBICC` and `STAGE2_CHIBICC` are the compiler binaries produced in

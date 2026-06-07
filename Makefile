@@ -1,5 +1,4 @@
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
-export CFLAGS
 
 STAGE1=.make/stage1
 STAGE2=.make/stage2
