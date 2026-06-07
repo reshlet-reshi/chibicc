@@ -8,45 +8,31 @@ source distribution, unpack it into `.make/stage1` or `.make/stage2`, and then
 run local stage targets in that extracted tree. The local targets build a
 compiler named `chibicc`, build test executables, and run the driver tests.
 
-## Flags and stage paths
+The Makefile intentionally keeps variable definitions close to the first rule
+that needs them. Variables used in target names or prerequisite lists still
+appear before those rules, because Make expands that syntax while reading the
+file. Recipe-only variables can sit beside the recipe that consumes them.
+
+## Entry points
+
+```make
+default: compiler
+
+all: test-all
+```
+
+The first target is `default`, so plain `make` builds the local compiler
+through that named target. `default` depends on `compiler`, the phony
+local-stage command target that writes root `./chibicc` and `.o/*.o` outputs.
+
+The conventional `all` target is an alias for `test-all`, so `make all` runs
+the full stage 1 and stage 2 test gate without changing the default target's
+lighter behavior.
+
+## Local compiler build
 
 ```make
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
-
-STAGE1=.make/stage1
-STAGE2=.make/stage2
-STAGE1_CHIBICC=$(STAGE1)/chibicc
-STAGE2_CHIBICC=$(STAGE2)/chibicc
-SRC_DIST?=.make/chibicc.tar.gz
-SRC_DIST_ROOT=chibicc
-SRC_DIST_LIST=.make/src-dist.files
-```
-
-`CFLAGS` is the host compiler warning and debug policy. It requests C11,
-debug information, non-common globals, most warnings, and then treats enabled
-warnings as errors. `-Wno-switch` stays before `-Werror`, so switch warnings
-remain explicitly disabled. Recursive Make calls read this default from the
-extracted Makefile, while command-line `CFLAGS=...` overrides still propagate
-through GNU Make's normal `MAKEFLAGS` handling.
-
-`STAGE1` and `STAGE2` are extracted source roots under `.make/`.
-`STAGE1_CHIBICC` and `STAGE2_CHIBICC` are the compiler binaries produced in
-those extracted roots. `SRC_DIST` is the source archive that `src-dist`
-writes and stage builds consume; callers can override it to choose a different
-archive path. `SRC_DIST_ROOT` is the top-level directory name stored inside
-the tarball.
-
-`SRC_DIST_LIST` is a temporary nul-delimited list consumed by tar. It lives
-under `.make/`, including when `make src-dist` is run from an extracted tree.
-
-## Fixed source lists
-
-```make
-DIST_ROOT_FILES=\
-	LICENSE \
-	Makefile \
-	README.md \
-	chibicc.h
 
 COMPILER_SRCS=\
 	codegen.c \
@@ -54,93 +40,9 @@ COMPILER_SRCS=\
 	...
 	unicode.c
 
-DIST_INCLUDE_FILES=\
-	include/float.h \
-	include/stdalign.h \
-	...
-	include/stdnoreturn.h
-
-TEST_SRCS=\
-	test/alignof.c \
-	test/alloca.c \
-	test/arith.c \
-	...
-	test/vla.c
-
-TEST_FILES=\
-	$(TEST_SRCS) \
-	test/driver.sh \
-	test/include1.h \
-	test/shared/common.c \
-	test/thirdparty/common.sh.inc \
-	...
-	test/thirdparty/tinycc.sh
-
-DIST_FILES=\
-	$(DIST_ROOT_FILES) \
-	$(COMPILER_SRCS) \
-	$(DIST_INCLUDE_FILES) \
-	$(TEST_FILES)
-```
-
-The source distribution no longer asks Git for a file list at build time.
-`DIST_ROOT_FILES`, `COMPILER_SRCS`, `DIST_INCLUDE_FILES`, and `TEST_FILES`
-are the explicit contract for files that enter the tarball. They contain
-tracked project files outside `meta/` and intentionally omit `.gitignore` and
-`.gitmodules`. Because these lists are ordinary Make data, the same archive
-rule works from the repository root and from an extracted source tree that has
-no `.git/` directory.
-
-`COMPILER_SRCS` is the semantic list of root compiler implementation sources.
-Those files become `$(OBJDIR)/*.o` and then link into `chibicc`.
-
-`TEST_SRCS` is the semantic list of direct `test/*.c` programs. Those files
-become local test objects and executables.
-
-`TEST_FILES` starts with `$(TEST_SRCS)` and then adds every current
-distributed non-program file under `test/`, including headers, shell scripts,
-third-party test harnesses, and nested helpers. This keeps the test program
-list explicit while still deriving the source distribution's test subtree from
-one place.
-
-`DIST_FILES` is derived from the smaller lists, so compiler and test files are
-not repeated in one giant manifest. Nested helper sources such as
-`test/shared/common.c` stay in the source distribution but are not standalone
-test executables.
-
-## Local stage outputs
-
-```make
 LOCAL_CHIBICC=chibicc
 OBJDIR=.o
 OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
-TEST_OBJDIR=test/.o
-TEST_EXEDIR=test/.exe
-TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
-TEST_LINK_CC?=$(CC)
-```
-
-These variables describe one local stage tree. In the repository root they
-allow direct commands such as `make compiler` and `make test-compiler`.
-Inside `.make/stage1` or `.make/stage2`, the same variables point at the
-outputs for that extracted stage.
-
-`LOCAL_CHIBICC` is the local compiler binary. `OBJDIR` receives compiler
-objects such as `.o/parse.o`. `TEST_OBJDIR` receives test objects such as
-`test/.o/arith.o`, and `TEST_EXEDIR` receives test executables such as
-`test/.exe/arith.exe`.
-
-The substitutions preserve each stem. For example, `parse.c` maps to
-`.o/parse.o`, and `test/arith.c` maps to `test/.exe/arith.exe`.
-`TEST_LINK_CC` defaults to `$(CC)` but can be overridden by the outer
-orchestrator when compiler-building and test-linking need different drivers.
-
-## Entry points and local stage targets
-
-```make
-default: compiler
-
-all: test-all
 
 compiler:
 	mkdir -p $(OBJDIR)
@@ -149,6 +51,52 @@ compiler:
 		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
 	done
 	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
+```
+
+`CFLAGS` is the host compiler warning and debug policy. It requests C11,
+debug information, non-common globals, most warnings, and then treats enabled
+warnings as errors. `-Wno-switch` stays before `-Werror`, so switch warnings
+remain explicitly disabled. Recursive Make calls read this default from the
+extracted Makefile, while command-line `CFLAGS=...` overrides still propagate
+through Make's normal `MAKEFLAGS` handling.
+
+`COMPILER_SRCS` is the semantic list of root compiler implementation sources.
+Those files become `$(OBJDIR)/*.o` and then link into `chibicc`.
+
+`LOCAL_CHIBICC` is the local compiler binary. `OBJDIR` receives compiler
+objects such as `.o/parse.o`. `OBJS` maps every root compiler source into that
+object directory while preserving the stem.
+
+`compiler` builds `chibicc` in whatever tree Make is currently running in.
+The target first creates `$(OBJDIR)`, then loops over `$(COMPILER_SRCS)`.
+`$$src` is a shell variable; the doubled dollar signs pass a literal `$`
+through Make to the shell. `$${src%.c}` strips the `.c` suffix, so `parse.c`
+maps to `.o/parse.o`.
+
+Each loop iteration compiles one root compiler source with `$(CC)
+$(CFLAGS)`. The `|| exit 1` guard stops the loop at the first failed compile
+instead of continuing to link with a missing or stale object. The final
+command links `$(LOCAL_CHIBICC)` from the explicit `$(OBJS)` list.
+`$(LDFLAGS)` remains available for callers that need additional link flags.
+
+The recipe intentionally avoids GNU Make pattern rules and automatic
+variables such as `$@`, `$<`, and `$^`, keeping the local stage build usable
+with pdpmake.
+
+## Local compiler test build
+
+```make
+TEST_SRCS=\
+	test/alignof.c \
+	test/alloca.c \
+	test/arith.c \
+	...
+	test/vla.c
+
+TEST_OBJDIR=test/.o
+TEST_EXEDIR=test/.exe
+TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
+TEST_LINK_CC?=$(CC)
 
 test-compiler: compiler
 	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
@@ -165,38 +113,13 @@ test-compiler: compiler
 	test/driver.sh ./$(LOCAL_CHIBICC)
 ```
 
-The first target is `default`, so plain `make` builds the local compiler
-through that named target. `default` depends on `compiler`, the phony
-local-stage command target that writes root `./chibicc` and `.o/*.o` outputs.
-This keeps the default build lightweight while leaving `test-all` as the
-full "does everything work right now?" gate.
+`TEST_SRCS` is the semantic list of direct `test/*.c` programs. `TEST_OBJDIR`
+receives test objects such as `test/.o/arith.o`, and `TEST_EXEDIR` receives
+test executables such as `test/.exe/arith.exe`. `TESTS` maps each test source
+to the executable path with the same stem.
 
-The conventional `all` target is an alias for `test-all`, so `make all` runs
-the full stage 1 and stage 2 test gate without changing the default target's
-lighter behavior.
-
-`compiler` is the local command target. It builds `chibicc` in whatever tree
-Make is currently running in.
-
-The target first creates `$(OBJDIR)`, then loops over `$(COMPILER_SRCS)`.
-`$$src` is a shell variable; the doubled dollar signs pass a literal `$`
-through Make to the shell. `$${src%.c}` strips the `.c` suffix, so `parse.c`
-maps to `.o/parse.o`.
-
-Each loop iteration compiles one root compiler source with `$(CC)
-$(CFLAGS)`. The `|| exit 1` guard stops the loop at the first failed compile
-instead of continuing to link with a missing or stale object.
-
-The final command links `$(LOCAL_CHIBICC)` from the explicit `$(OBJS)` list.
-`$(LDFLAGS)` remains available for callers that need additional link flags.
-The recipe intentionally avoids GNU Make pattern rules and automatic
-variables such as `$@`, `$<`, and `$^`, keeping the local stage build usable
-with pdpmake.
-
-The compiler build uses `$(CC) $(CFLAGS)`. In stage 1, that is the host
-compiler with the repository warning policy. In stage 2, the outer Makefile
-sets `CC` to the stage 1 compiler and clears `CFLAGS`, so chibicc receives
-only the stage-local include path.
+`TEST_LINK_CC` defaults to `$(CC)` but can be overridden by the outer
+orchestrator when compiler-building and test-linking need different drivers.
 
 `test-compiler` depends on `compiler`, so the local `./chibicc` is rebuilt
 before test objects are compiled. The recipe creates the test object and
@@ -224,6 +147,37 @@ linker option used here, such as `-pthread`.
 ## Source distribution
 
 ```make
+SRC_DIST?=.make/chibicc.tar.gz
+SRC_DIST_ROOT=chibicc
+SRC_DIST_LIST=.make/src-dist.files
+
+DIST_ROOT_FILES=\
+	LICENSE \
+	Makefile \
+	README.md \
+	chibicc.h
+
+DIST_INCLUDE_FILES=\
+	include/float.h \
+	include/stdalign.h \
+	...
+	include/stdnoreturn.h
+
+TEST_FILES=\
+	$(TEST_SRCS) \
+	test/driver.sh \
+	test/include1.h \
+	test/shared/common.c \
+	test/thirdparty/common.sh.inc \
+	...
+	test/thirdparty/tinycc.sh
+
+DIST_FILES=\
+	$(DIST_ROOT_FILES) \
+	$(COMPILER_SRCS) \
+	$(DIST_INCLUDE_FILES) \
+	$(TEST_FILES)
+
 $(SRC_DIST): $(DIST_FILES)
 	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
 	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
@@ -234,25 +188,47 @@ $(SRC_DIST): $(DIST_FILES)
 src-dist: $(SRC_DIST)
 ```
 
-The next real file target is `$(SRC_DIST)`, the source archive file target.
-By default it creates `.make/chibicc.tar.gz`; callers can override `SRC_DIST`
-to write somewhere else. Stage extraction also depends on `$(SRC_DIST)`, so
-the same override chooses the archive path used by stage builds.
+`SRC_DIST` is the source archive that `src-dist` writes and stage builds
+consume. Callers can override it to choose a different archive path.
+`SRC_DIST_ROOT` is the top-level directory name stored inside the tarball.
+`SRC_DIST_LIST` is a temporary nul-delimited list consumed by tar. It lives
+under `.make/`, including when `make src-dist` runs from an extracted tree.
+
+The source distribution no longer asks Git for a file list at build time.
+`DIST_ROOT_FILES`, `COMPILER_SRCS`, `DIST_INCLUDE_FILES`, and `TEST_FILES`
+are the explicit contract for files that enter the tarball. They contain
+tracked project files outside `meta/` and intentionally omit `.gitignore` and
+`.gitmodules`. Because these lists are ordinary Make data, the same archive
+rule works from the repository root and from an extracted source tree that has
+no `.git/` directory.
+
+`TEST_FILES` starts with `$(TEST_SRCS)` and then adds every current
+distributed non-program file under `test/`, including headers, shell scripts,
+third-party test harnesses, and nested helpers. This keeps the test program
+list explicit while still deriving the source distribution's test subtree from
+one place.
+
+`DIST_FILES` is derived from the smaller lists, so compiler and test files are
+not repeated in one giant manifest. Nested helper sources such as
+`test/shared/common.c` stay in the source distribution but are not standalone
+test executables.
 
 The archive target depends on every `DIST_FILES` entry. The recipe creates
-the output directory and the temporary list directory with shell `dirname`
-rather than GNU make's `$(dir ...)`, writes the explicit file list as
-nul-delimited records, and gives that list to GNU tar with `--null -T`.
+the output directory and the temporary list directory with shell `dirname`,
+writes the explicit file list as nul-delimited records, and gives that list
+to GNU tar with `--null -T`.
 
 `--transform` prefixes every archive member with `$(SRC_DIST_ROOT)/`, so the
 tarball expands to a wrapping `chibicc/` directory. Stage extraction flattens
-that wrapper by moving `chibicc/` to the requested stage path.
-
-`src-dist` is the public command target for building the archive directly.
+that wrapper by moving `chibicc/` to the requested stage path. `src-dist` is
+the public command target for building the archive directly.
 
 ## Stage 1 orchestration
 
 ```make
+STAGE1=.make/stage1
+STAGE1_CHIBICC=$(STAGE1)/chibicc
+
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
 	$(MAKE) -C $(STAGE1) compiler
 
@@ -262,10 +238,15 @@ test: $(STAGE1)/.src-ready
 test-all: test test-stage2
 ```
 
+`STAGE1` is the extracted source root under `.make/`, and `STAGE1_CHIBICC`
+is the compiler binary produced in that extracted root. These variables sit
+directly before the stage 1 rules because they are used in target names and
+prerequisites.
+
 `$(STAGE1_CHIBICC)` depends on `$(STAGE1)/.src-ready`, a stamp that means the
 source archive has been extracted into `.make/stage1`.
 
-The recipe then enters the extracted tree with `$(MAKE) -C $(STAGE1)`.
+The recipe enters the extracted tree with `$(MAKE) -C $(STAGE1)`.
 `$(MAKE)` preserves recursive Make behavior such as jobserver flags. Stage 1
 uses the extracted Makefile's normal `$(CC)` and `$(CFLAGS)` values, so
 compiler sources are still built with the host warning policy.
@@ -277,6 +258,9 @@ over the stage 1 and stage 2 test commands.
 ## Stage 2 orchestration
 
 ```make
+STAGE2=.make/stage2
+STAGE2_CHIBICC=$(STAGE2)/chibicc
+
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
@@ -288,8 +272,11 @@ test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 			"TEST_LINK_CC=$(CC)" CFLAGS= test-compiler
 ```
 
-Stage 2 has two prerequisites: the stage 1 compiler and an extracted stage 2
-source tree. Once both exist, the recipe captures the absolute stage 1
+`STAGE2` is the second extracted source root, and `STAGE2_CHIBICC` is the
+compiler binary produced there. Stage 2 has two prerequisites: the stage 1
+compiler and an extracted stage 2 source tree.
+
+Once both prerequisites exist, the recipe captures the absolute stage 1
 compiler path with shell `pwd`, enters `.make/stage2`, and sets `CC` to that
 compiler plus `-Iinclude`.
 

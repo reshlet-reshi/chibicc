@@ -1,18 +1,8 @@
+default: compiler
+
+all: test-all
+
 CFLAGS=-std=c11 -g -fno-common -Wall -Wno-switch -Werror
-
-STAGE1=.make/stage1
-STAGE2=.make/stage2
-STAGE1_CHIBICC=$(STAGE1)/chibicc
-STAGE2_CHIBICC=$(STAGE2)/chibicc
-SRC_DIST?=.make/chibicc.tar.gz
-SRC_DIST_ROOT=chibicc
-SRC_DIST_LIST=.make/src-dist.files
-
-DIST_ROOT_FILES=\
-	LICENSE \
-	Makefile \
-	README.md \
-	chibicc.h
 
 COMPILER_SRCS=\
 	codegen.c \
@@ -25,14 +15,17 @@ COMPILER_SRCS=\
 	type.c \
 	unicode.c
 
-DIST_INCLUDE_FILES=\
-	include/float.h \
-	include/stdalign.h \
-	include/stdarg.h \
-	include/stdatomic.h \
-	include/stdbool.h \
-	include/stddef.h \
-	include/stdnoreturn.h
+LOCAL_CHIBICC=chibicc
+OBJDIR=.o
+OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
+
+compiler:
+	mkdir -p $(OBJDIR)
+	for src in $(COMPILER_SRCS); do \
+		obj=$(OBJDIR)/$${src%.c}.o; \
+		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
+	done
+	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
 
 TEST_SRCS=\
 	test/alignof.c \
@@ -77,6 +70,44 @@ TEST_SRCS=\
 	test/variable.c \
 	test/vla.c
 
+TEST_OBJDIR=test/.o
+TEST_EXEDIR=test/.exe
+TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
+TEST_LINK_CC?=$(CC)
+
+test-compiler: compiler
+	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
+	for src in $(TEST_SRCS); do \
+		stem=$${src#test/}; \
+		stem=$${stem%.c}; \
+		obj=$(TEST_OBJDIR)/$$stem.o; \
+		exe=$(TEST_EXEDIR)/$$stem.exe; \
+		./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $$obj $$src || exit 1; \
+		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
+			|| exit 1; \
+	done
+	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
+	test/driver.sh ./$(LOCAL_CHIBICC)
+
+SRC_DIST?=.make/chibicc.tar.gz
+SRC_DIST_ROOT=chibicc
+SRC_DIST_LIST=.make/src-dist.files
+
+DIST_ROOT_FILES=\
+	LICENSE \
+	Makefile \
+	README.md \
+	chibicc.h
+
+DIST_INCLUDE_FILES=\
+	include/float.h \
+	include/stdalign.h \
+	include/stdarg.h \
+	include/stdatomic.h \
+	include/stdbool.h \
+	include/stddef.h \
+	include/stdnoreturn.h
+
 TEST_FILES=\
 	$(TEST_SRCS) \
 	test/driver.sh \
@@ -99,40 +130,6 @@ DIST_FILES=\
 	$(DIST_INCLUDE_FILES) \
 	$(TEST_FILES)
 
-LOCAL_CHIBICC=chibicc
-OBJDIR=.o
-OBJS=$(COMPILER_SRCS:%.c=$(OBJDIR)/%.o)
-TEST_OBJDIR=test/.o
-TEST_EXEDIR=test/.exe
-TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
-TEST_LINK_CC?=$(CC)
-
-default: compiler
-
-all: test-all
-
-compiler:
-	mkdir -p $(OBJDIR)
-	for src in $(COMPILER_SRCS); do \
-		obj=$(OBJDIR)/$${src%.c}.o; \
-		$(CC) $(CFLAGS) -c -o $$obj $$src || exit 1; \
-	done
-	$(CC) $(CFLAGS) -o $(LOCAL_CHIBICC) $(OBJS) $(LDFLAGS)
-
-test-compiler: compiler
-	mkdir -p $(TEST_EXEDIR) $(TEST_OBJDIR)
-	for src in $(TEST_SRCS); do \
-		stem=$${src#test/}; \
-		stem=$${stem%.c}; \
-		obj=$(TEST_OBJDIR)/$$stem.o; \
-		exe=$(TEST_EXEDIR)/$$stem.exe; \
-		./$(LOCAL_CHIBICC) -Iinclude -Itest -c -o $$obj $$src || exit 1; \
-		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
-			|| exit 1; \
-	done
-	for i in $(TEST_EXEDIR)/*.exe; do echo $$i; ./$$i || exit 1; echo; done
-	test/driver.sh ./$(LOCAL_CHIBICC)
-
 $(SRC_DIST): $(DIST_FILES)
 	mkdir -p "$$(dirname "$@")" "$$(dirname "$(SRC_DIST_LIST)")"
 	printf '%s\0' $(DIST_FILES) > $(SRC_DIST_LIST)
@@ -142,6 +139,9 @@ $(SRC_DIST): $(DIST_FILES)
 
 src-dist: $(SRC_DIST)
 
+STAGE1=.make/stage1
+STAGE1_CHIBICC=$(STAGE1)/chibicc
+
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
 	$(MAKE) -C $(STAGE1) compiler
 
@@ -149,6 +149,9 @@ test: $(STAGE1)/.src-ready
 	$(MAKE) -C $(STAGE1) test-compiler
 
 test-all: test test-stage2
+
+STAGE2=.make/stage2
+STAGE2_CHIBICC=$(STAGE2)/chibicc
 
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
