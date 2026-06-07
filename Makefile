@@ -6,7 +6,9 @@ OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
 STAGE2_OBJS=$(SRCS:%.c=stage2/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
-TESTS=$(TEST_SRCS:.c=.exe)
+TEST_EXEDIR=.make/test/.exe
+TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
+STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
 
 # Stage 1
 
@@ -17,7 +19,8 @@ $(OBJDIR)/%.o: %.c chibicc.h
 	mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-test/%.exe: chibicc test/%.c test/shared/common.c
+$(TEST_EXEDIR)/%.exe: chibicc test/%.c test/shared/common.c
+	mkdir -p $(@D)
 	./chibicc -Iinclude -Itest -c -o test/$*.o test/$*.c
 	$(CC) -pthread -o $@ test/$*.o test/shared/common.c
 
@@ -41,7 +44,7 @@ stage2/test/%.exe: stage2/chibicc test/%.c test/shared/common.c
 	./stage2/chibicc -Iinclude -Itest -c -o stage2/test/$*.o test/$*.c
 	$(CC) -pthread -o $@ stage2/test/$*.o test/shared/common.c
 
-test-stage2: $(TESTS:test/%=stage2/test/%)
+test-stage2: $(STAGE2_TESTS)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
 	test/driver.sh ./stage2/chibicc
 

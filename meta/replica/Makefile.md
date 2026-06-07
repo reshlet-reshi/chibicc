@@ -18,7 +18,9 @@ OBJS=$(SRCS:%.c=$(OBJDIR)/%.o)
 STAGE2_OBJS=$(SRCS:%.c=stage2/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
-TESTS=$(TEST_SRCS:.c=.exe)
+TEST_EXEDIR=.make/test/.exe
+TESTS=$(TEST_SRCS:test/%.c=$(TEST_EXEDIR)/%.exe)
+STAGE2_TESTS=$(TEST_SRCS:test/%.c=stage2/test/%.exe)
 ```
 
 `CFLAGS` is the shared compile/link flag set used when the host compiler
@@ -36,9 +38,11 @@ object under `.make/.o/`. For example, `parse.c` contributes
 `.make/.o/parse.o`. `STAGE2_OBJS` performs a separate substitution for the
 self-hosted compiler build, so `parse.c` contributes `stage2/parse.o` there.
 
-`TEST_SRCS` performs the same discovery for C tests under `test/`. `TESTS`
-maps those sources to executable names by replacing `.c` with `.exe`, so
-`test/arith.c` becomes `test/arith.exe`.
+`TEST_SRCS` performs the same discovery for C tests under `test/`.
+`TEST_EXEDIR` names the private build directory for stage 1 test executables.
+`TESTS` maps test sources into that directory, so `test/arith.c` becomes
+`.make/test/.exe/arith.exe`. `STAGE2_TESTS` maps the same sources to
+`stage2/test/*.exe` paths for the self-hosted test run.
 
 These variables are evaluated by Make before it decides which targets need to
 be rebuilt. Adding a new top-level compiler source or a new `test/*.c` file is
@@ -78,27 +82,30 @@ relinking `chibicc`.
 ## Stage 1 test executables
 
 ```make
-test/%.exe: chibicc test/%.c test/shared/common.c
+$(TEST_EXEDIR)/%.exe: chibicc test/%.c test/shared/common.c
+	mkdir -p $(@D)
 	./chibicc -Iinclude -Itest -c -o test/$*.o test/$*.c
 	$(CC) -pthread -o $@ test/$*.o test/shared/common.c
 ```
 
-This pattern rule turns each `test/*.c` source into a `test/*.exe`
-executable. The `%` is the stem matched between `test/` and `.exe`; Make
-exposes that stem as `$*`. For `test/arith.exe`, `$*` is `arith`.
+This pattern rule turns each `test/*.c` source into a stage 1 executable under
+`.make/test/.exe/`. The `%` is the stem matched between `test/` and `.c` for
+the source and between `$(TEST_EXEDIR)/` and `.exe` for the target. Make
+exposes that stem as `$*`. For `.make/test/.exe/arith.exe`, `$*` is `arith`.
 
 The prerequisites force three things to exist or be current before a test is
 linked: the stage 1 compiler, the test source, and `test/shared/common.c`.
 
-The first recipe line uses the freshly built `./chibicc` to compile the test
-source into an object file. `-Iinclude -Itest` makes repository headers and
-test headers visible. The output object is `test/$*.o`, matching the stem of
-the executable being built.
+The first recipe line creates the output directory named by `$(@D)`, which is
+`.make/test/.exe` for these targets. The next line uses the freshly built
+`./chibicc` to compile the test source into an object file. `-Iinclude -Itest`
+makes repository headers and test headers visible. The output object is
+`test/$*.o`, matching the stem of the executable being built.
 
 The second recipe line uses the host compiler to link the executable. `$@` is
-the final executable path, such as `test/arith.exe`. The test object is linked
-with `test/shared/common.c`, and `-pthread` supplies the thread support needed
-by tests that exercise threading behavior.
+the final executable path, such as `.make/test/.exe/arith.exe`. The test
+object is linked with `test/shared/common.c`, and `-pthread` supplies the
+thread support needed by tests that exercise threading behavior.
 
 This split is important: the test source is compiled by `chibicc`, but the
 final link is still performed by the host compiler.
@@ -204,14 +211,15 @@ object, not the system linker.
 ## Stage 2 test target
 
 ```make
-test-stage2: $(TESTS:test/%=stage2/test/%)
+test-stage2: $(STAGE2_TESTS)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
 	test/driver.sh ./stage2/chibicc
 ```
 
-`test-stage2` maps every stage 1 test executable name to the matching stage 2
-path. The substitution `$(TESTS:test/%=stage2/test/%)` rewrites
-`test/arith.exe` to `stage2/test/arith.exe`.
+`test-stage2` depends on `$(STAGE2_TESTS)`, the explicit list of stage 2 test
+executables derived from `TEST_SRCS`. That keeps stage 2 test outputs under
+`stage2/test/` even though stage 1 test executables moved under
+`.make/test/.exe/`.
 
 The loop is the same shape as the stage 1 test loop: print each executable,
 run it, and stop at the first failure. After the C tests pass, the shell
@@ -230,8 +238,9 @@ clean:
 
 `clean` removes generated build and test outputs. The first command deletes
 the stage 1 compiler, the `.make` build scratch directory, temporary root
-files matching `tmp*`, all discovered test executables, test
-assembly/executable outputs, and the entire `stage2` tree.
+files matching `tmp*`, all discovered stage 1 test executables, stale
+root-adjacent `test/*.exe` outputs, test assembly outputs, and the entire
+`stage2` tree.
 
 The second command finds editor backup files and object files below the
 repository root and removes them. The parentheses are quoted so the shell
