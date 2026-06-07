@@ -13,9 +13,9 @@ chibicc: $(OBJS)
 
 $(OBJS): chibicc.h
 
-test/%.exe: chibicc test/%.c
+test/%.exe: chibicc test/%.c test/shared/common.c
 	./chibicc -Iinclude -Itest -c -o test/$*.o test/$*.c
-	$(CC) -pthread -o $@ test/$*.o -xc test/common
+	$(CC) -pthread -o $@ test/$*.o test/shared/common.c
 
 test: $(TESTS)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
@@ -32,10 +32,10 @@ stage2/%.o: chibicc %.c
 	mkdir -p stage2/test
 	./chibicc -c -o $(@D)/$*.o $*.c
 
-stage2/test/%.exe: stage2/chibicc test/%.c
+stage2/test/%.exe: stage2/chibicc test/%.c test/shared/common.c
 	mkdir -p stage2/test
 	./stage2/chibicc -Iinclude -Itest -c -o stage2/test/$*.o test/$*.c
-	$(CC) -pthread -o $@ stage2/test/$*.o -xc test/common
+	$(CC) -pthread -o $@ stage2/test/$*.o test/shared/common.c
 
 test-stage2: $(TESTS:test/%=stage2/test/%)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
