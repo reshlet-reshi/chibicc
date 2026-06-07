@@ -3,14 +3,14 @@
 | File | Status | Notes |
 | --- | --- | --- |
 | `.gitignore` | OK | Ignores build/test outputs, Python bytecode caches, local temporaries, and third-party checkout state. |
-| `AGENTS.md` | Reviewed | Root policy pointer to the detailed docs agent instructions. |
-| `docs/branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
-| `docs/AGENTS.md` | Reviewed | Agent policy requiring clean commits and passing docs lint. |
-| `docs/lint.py` | Reviewed | Python orchestrator for ShellCheck, strict mypy, and manifest validation. |
-| `docs/lint.sh` | Reviewed | Self-locating Bash bootstrap for type-checking and invoking `docs/lint.py`. |
-| `docs/manifest.ignore.md` | Reviewed | Defines the omission contract for files intentionally left out of this manifest. |
-| `docs/manifest.md` | Reviewed | Positive manifest of tracked files requiring explicit audit/status. |
-| `docs/manifest.py` | Reviewed | Enforces this manifest against the manifest ignore contract. |
+| `AGENTS.md` | Reviewed | Root policy pointer to the detailed meta agent instructions. |
+| `meta/branches.md` | Reviewed | Branch inventory, including local unpushed archive and WIP branches. |
+| `meta/AGENTS.md` | Reviewed | Agent policy requiring clean commits and passing meta lint. |
+| `meta/lint.py` | Reviewed | Python orchestrator for ShellCheck, strict mypy, and manifest validation. |
+| `meta/lint.sh` | Reviewed | Self-locating Bash bootstrap for type-checking and invoking `meta/lint.py`. |
+| `meta/manifest.ignore.md` | Reviewed | Defines the omission contract for files intentionally left out of this manifest. |
+| `meta/manifest.md` | Reviewed | Positive manifest of tracked files requiring explicit audit/status. |
+| `meta/manifest.py` | Reviewed | Enforces this manifest against the manifest ignore contract. |
 | `LICENSE` | OK | MIT license text. |
 | `Makefile` | Needs cleanup | Core build/test entrypoint; `test-all` should be added to `.PHONY`. |
 | `mypy.ini` | Reviewed | Very strict explicit mypy configuration for repository Python lint. |

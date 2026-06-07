@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "docs" / "manifest.md"
-IGNORE = ROOT / "docs" / "manifest.ignore.md"
+MANIFEST = ROOT / "meta" / "manifest.md"
+IGNORE = ROOT / "meta" / "manifest.ignore.md"
 
 
 def git(args: Sequence[str]) -> bytes:
@@ -98,7 +98,7 @@ def report(title: str, paths: Sequence[str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Validate docs/manifest.md against docs/manifest.ignore.md",
+        description="Validate meta/manifest.md against meta/manifest.ignore.md",
     )
     parser.parse_args()
 

@@ -1,1 +1,1 @@
-see [docs/AGENTS.md](docs/AGENTS.md)
+see [meta/AGENTS.md](meta/AGENTS.md)

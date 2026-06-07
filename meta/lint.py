@@ -5,8 +5,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 
-DOCS = Path(__file__).resolve().parent
-ROOT = DOCS.parent
+META = Path(__file__).resolve().parent
+ROOT = META.parent
 MYPY_CACHE = Path("/tmp/chibicc-mypy-cache")
 
 
@@ -61,7 +61,7 @@ def main() -> None:
             ],
         )
 
-    run([sys.executable, str(DOCS / "manifest.py")])
+    run([sys.executable, str(META / "manifest.py")])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Manifest Ignore Rules
 
-`docs/manifest.md` lists tracked files that require explicit audit/status.
+`meta/manifest.md` lists tracked files that require explicit audit/status.
 This file defines the only allowed omissions from that manifest.
 
 The current manifest intentionally focuses on repository meta-structure first:
