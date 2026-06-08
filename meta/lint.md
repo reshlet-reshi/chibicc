@@ -10,9 +10,10 @@ The only allowed `.ini` file is `meta/mypy.ini`, which is validated by mypy
 itself. Python files are checked by Ruff and mypy.
 
 `lint.py` also compares the tracked non-`meta/` file set, intentionally
-omitting `AGENTS.md`, `.gitignore`, and `.gitmodules`, against the root
-`Makefile` `DIST_FILES` list. New source distribution inputs must therefore
-be added to that explicit list or to an explicit omission policy.
+omitting `AGENTS.md`, `.gitignore`, and `.gitmodules`, against the source
+distribution lists in the root `Makefile` and `test/Makefile`. New source
+distribution inputs must therefore be added to the appropriate explicit list
+or to an explicit omission policy.
 
 Build and test validation belongs to `meta/check.sh`, not this fast lint pass.
 

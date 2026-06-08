@@ -34,6 +34,7 @@ meta/
 - [`LICENSE`](replica/LICENSE.md)
 - [`Makefile`](replica/Makefile.md)
 - [`README.md`](replica/README.md.md)
+- [`test/Makefile`](replica/test/Makefile.md)
 - [`test/driver.sh`](replica/test/driver.sh.md)
 - [`test/thirdparty/common.sh.inc`](replica/test/thirdparty/common.sh.inc.md)
 - [`test/thirdparty/cpython.sh`](replica/test/thirdparty/cpython.sh.md)

@@ -13,6 +13,7 @@ MYPY_CACHE = Path("/tmp/chibicc-mypy-cache")
 EXTRA_LINTS = META / "lint.md"
 REPLICA = Path("meta/replica")
 MAKEFILE = ROOT / "Makefile"
+TEST_MAKEFILE = ROOT / "test" / "Makefile"
 MYPY_CONFIG = Path("meta/mypy.ini")
 ALLOWED_EXTENSIONLESS = {"LICENSE", "Makefile"}
 SHELL_EXTENSIONS = {".sh", ".sh.inc"}
@@ -186,10 +187,19 @@ def make_variable_words(
     return expanded
 
 
-def check_source_dist_files() -> None:
-    dist_files = [
+def source_dist_files() -> list[Path]:
+    root_files = [
         Path(word) for word in make_variable_words(MAKEFILE, "DIST_FILES")
     ]
+    test_files = [
+        Path("test") / word
+        for word in make_variable_words(TEST_MAKEFILE, "TEST_FILES")
+    ]
+    return root_files + test_files
+
+
+def check_source_dist_files() -> None:
+    dist_files = source_dist_files()
     duplicates = sorted(
         {path for path in dist_files if dist_files.count(path) > 1},
     )
