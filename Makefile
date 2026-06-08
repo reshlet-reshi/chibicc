@@ -60,11 +60,11 @@ test-compiler-exes: chibicc
 test-compiler-driver: chibicc
 	$(MAKE) -C test "CC=../chibicc" test-compiler-driver
 
-SRC_DIST?=.make/chibicc.tar
-ROOT_SRC_DIST?=.make/chibicc-src.tar
-TEST_SRC_DIST?=.make/chibicc-test.tar
-SRC_DIST_ROOT=chibicc
-ROOT_SRC_DIST_LIST=.make/root-src-dist.files
+ARCHIVE?=.make/chibicc.tar
+ROOT_ARCHIVE?=.make/chibicc-src.tar
+TEST_ARCHIVE?=.make/chibicc-test.tar
+ARCHIVE_ROOT=chibicc
+ROOT_ARCHIVE_LIST?=.make/root-archive.files
 
 DIST_ROOT_FILES=\
 	LICENSE \
@@ -81,30 +81,30 @@ DIST_INCLUDE_FILES=\
 	include/stddef.h \
 	include/stdnoreturn.h
 
-DIST_FILES=\
+FILES=\
 	$(DIST_ROOT_FILES) \
 	$(SRCS) \
 	$(DIST_INCLUDE_FILES)
 
-$(ROOT_SRC_DIST): $(DIST_FILES)
-	mkdir -p "$$(dirname "$@")" "$$(dirname "$(ROOT_SRC_DIST_LIST)")"
-	printf '%s\0' $(DIST_FILES) > $(ROOT_SRC_DIST_LIST)
-	tar --null -T $(ROOT_SRC_DIST_LIST) \
-		--transform='s,^,$(SRC_DIST_ROOT)/,' \
+$(ROOT_ARCHIVE): $(FILES)
+	mkdir -p "$$(dirname "$@")" "$$(dirname "$(ROOT_ARCHIVE_LIST)")"
+	printf '%s\0' $(FILES) > $(ROOT_ARCHIVE_LIST)
+	tar --null -T $(ROOT_ARCHIVE_LIST) \
+		--transform='s,^,$(ARCHIVE_ROOT)/,' \
 		-cf $@
 
-$(TEST_SRC_DIST):
+$(TEST_ARCHIVE):
 	$(MAKE) -C test \
-		"TEST_SRC_DIST=$$(pwd)/$(TEST_SRC_DIST)" \
-		"TEST_SRC_DIST_LIST=$$(pwd)/.make/test-src-dist.files" \
-		"SRC_DIST_ROOT=$(SRC_DIST_ROOT)" src-dist
+		"ARCHIVE=$$(pwd)/$(TEST_ARCHIVE)" \
+		"ARCHIVE_LIST=$$(pwd)/.make/test-archive.files" \
+		"ARCHIVE_ROOT=$(ARCHIVE_ROOT)" archive
 
-$(SRC_DIST): $(ROOT_SRC_DIST) $(TEST_SRC_DIST)
+$(ARCHIVE): $(ROOT_ARCHIVE) $(TEST_ARCHIVE)
 	mkdir -p "$$(dirname "$@")"
-	cp "$(ROOT_SRC_DIST)" "$@"
-	tar -Af "$@" "$(TEST_SRC_DIST)"
+	cp "$(ROOT_ARCHIVE)" "$@"
+	tar -Af "$@" "$(TEST_ARCHIVE)"
 
-src-dist: $(SRC_DIST)
+archive: $(ARCHIVE)
 
 STAGE1=.make/stage1
 STAGE1_CHIBICC=$(STAGE1)/chibicc
@@ -130,14 +130,14 @@ test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC" \
 			"LINK_CC=$(CC)" CFLAGS= test-compiler
 
-$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
+$(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(ARCHIVE)
 	@case '$(@D)' in .make/*) ;; \
 		*) echo 'refusing to prepare stage outside .make' >&2; exit 1;; \
 	esac
 	rm -rf $(@D) $(@D).unpack
 	mkdir -p $(@D).unpack
-	tar -xf $(SRC_DIST) -C $(@D).unpack
-	mv $(@D).unpack/$(SRC_DIST_ROOT) $(@D)
+	tar -xf $(ARCHIVE) -C $(@D).unpack
+	mv $(@D).unpack/$(ARCHIVE_ROOT) $(@D)
 	rm -rf $(@D).unpack
 	touch $@
 
@@ -146,6 +146,6 @@ clean:
 	rm -rf stage2
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
-.PHONY: all clean default src-dist test test-compiler
+.PHONY: all archive clean default test test-compiler
 .PHONY: test-compiler-driver test-compiler-exes
-.PHONY: test-all test-stage2 $(TEST_SRC_DIST)
+.PHONY: test-all test-stage2 $(TEST_ARCHIVE)

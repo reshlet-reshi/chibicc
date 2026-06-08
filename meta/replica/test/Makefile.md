@@ -12,4 +12,4 @@ separate and names the host compiler driver used to link test executables.
 It builds `*.o`, `*.exe`, and `shared/common.o` under `test/`, runs the
 executable tests, and invokes `driver.sh` with `CC`. It also owns the test
 source archive component, which is appended to the root source archive by the
-top-level `src-dist` target.
+top-level `archive` target.

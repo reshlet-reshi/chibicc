@@ -187,29 +187,29 @@ def make_variable_words(
     return expanded
 
 
-def source_dist_files() -> list[Path]:
+def source_archive_files() -> list[Path]:
     root_files = [
-        Path(word) for word in make_variable_words(MAKEFILE, "DIST_FILES")
+        Path(word) for word in make_variable_words(MAKEFILE, "FILES")
     ]
     test_files = [
         Path("test") / word
-        for word in make_variable_words(TEST_MAKEFILE, "TEST_FILES")
+        for word in make_variable_words(TEST_MAKEFILE, "FILES")
     ]
     return root_files + test_files
 
 
-def check_source_dist_files() -> None:
-    dist_files = source_dist_files()
+def check_source_archive_files() -> None:
+    archive_files = source_archive_files()
     duplicates = sorted(
-        {path for path in dist_files if dist_files.count(path) > 1},
+        {path for path in archive_files if archive_files.count(path) > 1},
     )
     if duplicates:
-        print("duplicate DIST_FILES entries:", file=sys.stderr)
+        print("duplicate source archive entries:", file=sys.stderr)
         for path in duplicates:
             print(f"  {path}", file=sys.stderr)
         raise SystemExit(1)
 
-    listed = set(dist_files)
+    listed = set(archive_files)
     tracked = git_source_dist_paths()
     missing = sorted(tracked - listed)
     unknown = sorted(listed - tracked)
@@ -217,13 +217,13 @@ def check_source_dist_files() -> None:
     if not missing and not unknown:
         return
 
-    print("source distribution file list mismatch:", file=sys.stderr)
+    print("source archive file list mismatch:", file=sys.stderr)
     if missing:
-        print("  missing DIST_FILES entries:", file=sys.stderr)
+        print("  missing FILES entries:", file=sys.stderr)
         for path in missing:
             print(f"    {path}", file=sys.stderr)
     if unknown:
-        print("  unknown DIST_FILES entries:", file=sys.stderr)
+        print("  unknown FILES entries:", file=sys.stderr)
         for path in unknown:
             print(f"    {path}", file=sys.stderr)
     raise SystemExit(1)
@@ -364,7 +364,7 @@ def lint_file(path: Path, python_paths: list[Path]) -> None:
 
 
 def main() -> None:
-    check_source_dist_files()
+    check_source_archive_files()
 
     files = [
         path for path in walk_visible_files() if not is_replica_path(path)

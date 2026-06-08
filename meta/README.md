@@ -31,7 +31,7 @@ here. Git submodules under `meta/` are listed as directory entries.
   - Configures extra executable metadata validators for `meta/lint.py`.
 - `lint.py`
   - Walks Git-visible files, dispatches extension-based lints, checks the
-    source distribution list, and runs configured metadata validators.
+    source archive file lists, and runs configured metadata validators.
 - `lint.sh`
   - Self-locating Bash bootstrap for type-checking and invoking `meta/lint.py`.
 - `manifest.md`

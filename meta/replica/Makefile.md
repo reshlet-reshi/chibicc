@@ -15,10 +15,10 @@ It currently covers these build roles:
 - Public local test targets delegate to `test/Makefile` with `CC` set to the
   local `../chibicc`; the test Makefile builds `test/*.o`, `test/*.exe`, and
   `test/shared/common.o`.
-- `src-dist` creates an uncompressed combined source archive at
+- `archive` creates an uncompressed combined source archive at
   `.make/chibicc.tar` by default, omitting metadata-only files.
-- Source distribution is split into root and test component archives before
-  the combined archive is assembled.
+- The source archive is split into root and test component archives before the
+  combined archive is assembled.
 - `test` and `test-stage2` unpack that archive under `.make/stage1/` and
   `.make/stage2/`, then run the extracted Makefile in each stage tree.
 - `clean` removes local generated outputs, staged `.make/` contents, and stale

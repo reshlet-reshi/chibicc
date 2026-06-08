@@ -237,11 +237,11 @@ vla.exe: $(CC) vla.c shared/common.o $(TEST_DEPS)
 test-compiler-driver: $(CC) driver.sh
 	./driver.sh $(CC)
 
-TEST_SRC_DIST?=../.make/chibicc-test.tar
-TEST_SRC_DIST_LIST?=../.make/test-src-dist.files
-SRC_DIST_ROOT?=chibicc
+ARCHIVE?=../.make/chibicc-test.tar
+ARCHIVE_LIST?=../.make/test-archive.files
+ARCHIVE_ROOT?=chibicc
 
-TEST_FILES=\
+FILES=\
 	$(SRCS) \
 	Makefile \
 	driver.sh \
@@ -258,14 +258,14 @@ TEST_FILES=\
 	thirdparty/sqlite.sh \
 	thirdparty/tinycc.sh
 
-$(TEST_SRC_DIST): $(TEST_FILES)
-	mkdir -p "$$(dirname "$@")" "$$(dirname "$(TEST_SRC_DIST_LIST)")"
-	printf '%s\0' $(TEST_FILES) > $(TEST_SRC_DIST_LIST)
-	tar --null -T $(TEST_SRC_DIST_LIST) \
-		--transform='s,^,$(SRC_DIST_ROOT)/test/,' \
+$(ARCHIVE): $(FILES)
+	mkdir -p "$$(dirname "$@")" "$$(dirname "$(ARCHIVE_LIST)")"
+	printf '%s\0' $(FILES) > $(ARCHIVE_LIST)
+	tar --null -T $(ARCHIVE_LIST) \
+		--transform='s,^,$(ARCHIVE_ROOT)/test/,' \
 		-cf $@
 
-src-dist: $(TEST_SRC_DIST)
+archive: $(ARCHIVE)
 
-.PHONY: all default src-dist test-compiler
+.PHONY: all archive default test-compiler
 .PHONY: test-compiler-driver test-compiler-exes
