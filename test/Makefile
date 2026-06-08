@@ -2,7 +2,7 @@ default: test-compiler
 
 all: test-compiler
 
-TEST_SRCS=\
+SRCS=\
 	alignof.c \
 	alloca.c \
 	arith.c \
@@ -45,7 +45,7 @@ TEST_SRCS=\
 	variable.c \
 	vla.c
 
-TESTS=$(TEST_SRCS:.c=.exe)
+TESTS=$(SRCS:.c=.exe)
 TEST_LINK_CC?=cc
 TEST_DEPS=\
 	test.h \
@@ -242,7 +242,7 @@ TEST_SRC_DIST_LIST?=../.make/test-src-dist.files
 SRC_DIST_ROOT?=chibicc
 
 TEST_FILES=\
-	$(TEST_SRCS) \
+	$(SRCS) \
 	Makefile \
 	driver.sh \
 	include1.h \
