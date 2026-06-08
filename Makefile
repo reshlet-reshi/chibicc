@@ -93,14 +93,17 @@ TEST_SRCS=\
 TESTS=$(TEST_SRCS:.c=.exe)
 TEST_LINK_CC?=$(CC)
 
-test-compiler: chibicc
+test/shared/common.o: chibicc test/shared/common.c
+	./chibicc -Iinclude -Itest -c -o test/shared/common.o test/shared/common.c
+
+test-compiler: chibicc test/shared/common.o
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
 		stem=$${stem%.c}; \
 		obj=test/$$stem.o; \
 		exe=test/$$stem.exe; \
 		./chibicc -Iinclude -Itest -c -o $$obj $$src || exit 1; \
-		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
+		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.o \
 			|| exit 1; \
 	done
 	for i in $(TESTS); do echo $$i; ./$$i || exit 1; echo; done

@@ -95,14 +95,17 @@ TEST_SRCS=\
 TESTS=$(TEST_SRCS:.c=.exe)
 TEST_LINK_CC?=$(CC)
 
-test-compiler: chibicc
+test/shared/common.o: chibicc test/shared/common.c
+	./chibicc -Iinclude -Itest -c -o test/shared/common.o test/shared/common.c
+
+test-compiler: chibicc test/shared/common.o
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
 		stem=$${stem%.c}; \
 		obj=test/$$stem.o; \
 		exe=test/$$stem.exe; \
 		./chibicc -Iinclude -Itest -c -o $$obj $$src || exit 1; \
-		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.c \
+		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.o \
 			|| exit 1; \
 	done
 	for i in $(TESTS); do echo $$i; ./$$i || exit 1; echo; done
@@ -115,9 +118,16 @@ each test source to its direct executable path with the same stem, so
 
 `TEST_LINK_CC` defaults to `$(CC)` but can be overridden by the outer
 orchestrator when compiler-building and test-linking need different drivers.
+It is used only for final executable links.
 
-`test-compiler` depends on `chibicc`, so the local compiler file is rebuilt
-before test objects are compiled. The recipe loops over `$(TEST_SRCS)`.
+`test/shared/common.o` is a real generated object target. It is compiled once
+from `test/shared/common.c` with the local `./chibicc`, avoiding a repeated
+helper compile for every test executable while still testing the compiler under
+test.
+
+`test-compiler` depends on `chibicc` and `test/shared/common.o`, so the local
+compiler file and shared helper object are rebuilt before test objects are
+compiled. The recipe loops over `$(TEST_SRCS)`.
 
 For each source, `$${src#test/}` removes the leading `test/`, and
 `$${stem%.c}` removes the `.c` suffix. `test/arith.c` therefore becomes the
@@ -126,15 +136,14 @@ stem `arith`, the object path `test/arith.o`, and the executable path
 
 The compile step always uses the local stage compiler with the stage-local
 `include/` and `test/` directories. The link step combines the test object
-with `test/shared/common.c` and writes the executable next to the test source.
+with `test/shared/common.o` and writes the executable next to the test source.
 Each command exits the loop immediately on failure.
 
 After the loop, the target runs each executable in `$(TESTS)`, printing the
 path before running it, and then runs `test/driver.sh` against the local
 `./chibicc`.
 
-The link step uses `$(TEST_LINK_CC)` without `$(CFLAGS)`, so stage 1 test
-helper warnings do not become `-Werror` failures. Stage 2 overrides
+The link step uses `$(TEST_LINK_CC)` without `$(CFLAGS)`. Stage 2 overrides
 `TEST_LINK_CC` to the host compiler because chibicc does not accept every
 linker option used here, such as `-pthread`.
 
@@ -281,10 +290,10 @@ include path remains stage-local because the recursive call runs from inside
 `.make/stage2`.
 
 `test-stage2` asks the stage 2 extracted Makefile to run `test-compiler`, so
-the tests are compiled by `.make/stage2/chibicc` after that compiler has
-been built. It also passes `TEST_LINK_CC=$(CC)` so the final test executable
-link continues to use the host compiler, which accepts link options such as
-`-pthread`.
+the tests and `test/shared/common.o` are compiled by `.make/stage2/chibicc`
+after that compiler has been built. It also passes `TEST_LINK_CC=$(CC)` so the
+final test executable link continues to use the host compiler, which accepts
+link options such as `-pthread`.
 
 ## Stage extraction
 
