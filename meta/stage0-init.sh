@@ -37,7 +37,17 @@ if [ -r /etc/stage0-qemu.conf ]; then
 fi
 
 run_sanity() {
+  sha256sum=/stage0-posix/AMD64/bin/sha256sum
   seed=/stage0-posix/bootstrap-seeds/POSIX/AMD64/kaem-optional-seed
+
+  if [ -x "$sha256sum" ]; then
+    cd /stage0-posix || return 1
+    if "$sha256sum" -c amd64.answers; then
+      echo "stage0-qemu: AMD64 bootstrap answers already verify"
+      return 0
+    fi
+    echo "stage0-qemu: preseed check failed; running seed bootstrap" >&2
+  fi
 
   if [ ! -x "$seed" ]; then
     echo "stage0-qemu: missing executable AMD64 seed: $seed" >&2
