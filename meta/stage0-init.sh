@@ -31,6 +31,7 @@ exec </dev/console >/dev/console 2>&1 || true
 STAGE0_LIVE_BOOTSTRAP=0
 STAGE0_REPL=0
 STAGE0_SUCCESS_MARKER=STAGE0_QEMU_SANITY_OK
+STAGE0_CAPTURE_PRESEED_1=0
 
 if [ -r /etc/stage0-qemu.conf ]; then
   # shellcheck disable=SC1091
@@ -85,11 +86,34 @@ run_live_bootstrap() {
   "$seed"
 }
 
+emit_preseed_1() {
+  if [ ! -x /usr/bin/checksum-transcriber ]; then
+    echo "stage0-qemu: missing /usr/bin/checksum-transcriber" >&2
+    return 1
+  fi
+  if [ ! -x /usr/bin/simple-patch ]; then
+    echo "stage0-qemu: missing /usr/bin/simple-patch" >&2
+    return 1
+  fi
+
+  echo "STAGE0_PRESEED_1_TAR_BEGIN"
+  (
+    cd / || exit 1
+    "$BB" tar -cf - usr/bin/checksum-transcriber usr/bin/simple-patch \
+      | "$BB" base64
+  ) || return 1
+  echo "STAGE0_PRESEED_1_TAR_END"
+}
+
 status=0
 if [ "$STAGE0_LIVE_BOOTSTRAP" = 1 ]; then
   run_live_bootstrap || status=$?
 else
   run_sanity || status=$?
+fi
+
+if [ "$status" -eq 0 ] && [ "$STAGE0_CAPTURE_PRESEED_1" = 1 ]; then
+  emit_preseed_1 || status=$?
 fi
 
 if [ "$status" -eq 0 ]; then

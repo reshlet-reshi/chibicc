@@ -31,9 +31,13 @@ busybox=$cache/busybox
 rootfs=$cache/rootfs
 initramfs=$cache/initramfs.cpio.gz
 qemu_log=$cache/qemu.log
-preseed_tar=$cache/preseed.tar
-preseed_stamp=$cache/preseed.stage0-head
-preseed_src=$cache/preseed-src
+preseed_0_tar=$cache/preseed-0.tar
+preseed_0_stamp=$cache/preseed-0.stage0-head
+preseed_0_src=$cache/preseed-0-src
+preseed_1_tar=$cache/preseed-1.tar
+preseed_1_stamp=$cache/preseed-1.stamp
+preseed_1_log=$cache/preseed-1.log
+preseed_1_validate_dir=$cache/preseed-1-validate
 live_bootstrap_manifest=$cache/live-bootstrap.manifest
 live_bootstrap_sources=$cache/live-bootstrap.sources
 live_bootstrap_distfiles=$cache/live-bootstrap-distfiles
@@ -41,19 +45,27 @@ success_marker=STAGE0_QEMU_SANITY_OK
 live_bootstrap=0
 preseed=1
 repl=1
+build_preseed_1=0
+capture_preseed_1=0
+no_preseed_requested=0
+preseed_1_begin=STAGE0_PRESEED_1_TAR_BEGIN
+preseed_1_end=STAGE0_PRESEED_1_TAR_END
 
 usage() {
   cat <<EOF
-usage: meta/stage0-qemu.sh [--live-bootstrap] [--no-preseed] [--no-repl]
+usage: meta/stage0-qemu.sh [--live-bootstrap] [--build-preseed-1]
+                           [--no-preseed] [--no-repl]
 
 Boot stage0-posix in QEMU TCG with a pinned Linux kernel and BusyBox initramfs.
-By default the host builds or reuses an AMD64 preseed tar, overlays it into the
-guest before boot, and drops into BusyBox ash after setup. With --no-preseed,
-the guest runs the AMD64 sanity seed. With --no-repl, the guest powers off
-after setup. With --live-bootstrap, the guest uses a chroot-style
+By default the host builds or reuses an AMD64 preseed-0 tar, overlays it into
+the guest before boot, and drops into BusyBox ash after setup. With
+--no-preseed, the guest runs the AMD64 sanity seed. With --no-repl, the guest
+powers off after setup. With --live-bootstrap, the guest uses a chroot-style
 live-bootstrap rootfs truncated after the simple-patch-1.0 build. Unless
 overridden, live-bootstrap mode uses 4096M of guest RAM and a 7200-second
-headless timeout.
+headless timeout. With --build-preseed-1, the guest runs that live-bootstrap
+checkpoint headlessly, emits the built checksum-transcriber and simple-patch
+binaries over serial, and stores the validated capture as preseed-1.tar.
 EOF
 }
 
@@ -63,7 +75,11 @@ while (($#)); do
       live_bootstrap=1
       success_marker=STAGE0_LIVE_BOOTSTRAP_OK
       ;;
+    --build-preseed-1)
+      build_preseed_1=1
+      ;;
     --no-preseed)
+      no_preseed_requested=1
       preseed=0
       ;;
     --no-repl)
@@ -81,6 +97,17 @@ while (($#)); do
   esac
   shift
 done
+
+if ((build_preseed_1)); then
+  if ((no_preseed_requested)); then
+    echo "--build-preseed-1 requires preseed-0; drop --no-preseed" >&2
+    exit 1
+  fi
+  live_bootstrap=1
+  preseed=1
+  repl=0
+  success_marker=STAGE0_LIVE_BOOTSTRAP_OK
+fi
 
 if ((live_bootstrap)) && [[ -z ${STAGE0_QEMU_MEMORY+x} ]]; then
   qemu_memory=4096M
@@ -114,6 +141,10 @@ require_preseed_commands() {
 
 require_live_bootstrap_commands() {
   require_command curl
+}
+
+require_preseed_1_commands() {
+  require_command base64
 }
 
 sha256_matches() {
@@ -205,41 +236,41 @@ copy_stage0_tree_to() {
   copy_tree_to "$stage0_src" "$destination"
 }
 
-preseed_is_current() {
-  [[ -f $preseed_tar ]] \
-    && [[ -f $preseed_stamp ]] \
-    && [[ $(<"$preseed_stamp") == "$stage0_expected_head" ]]
+preseed_0_is_current() {
+  [[ -f $preseed_0_tar ]] \
+    && [[ -f $preseed_0_stamp ]] \
+    && [[ $(<"$preseed_0_stamp") == "$stage0_expected_head" ]]
 }
 
-build_preseed_tar() {
+build_preseed_0_tar() {
   local stamp_tmp
   local tar_tmp
 
-  if preseed_is_current; then
-    echo "stage0-qemu: using current preseed tar: $preseed_tar"
+  if preseed_0_is_current; then
+    echo "stage0-qemu: using current preseed-0 tar: $preseed_0_tar"
     return
   fi
 
-  echo "stage0-qemu: building preseed tar: $preseed_tar"
+  echo "stage0-qemu: building preseed-0 tar: $preseed_0_tar"
   require_preseed_commands
-  tar_tmp=$preseed_tar.tmp
-  stamp_tmp=$preseed_stamp.tmp
+  tar_tmp=$preseed_0_tar.tmp
+  stamp_tmp=$preseed_0_stamp.tmp
   mkdir -p "$(dirname "$tar_tmp")" "$(dirname "$stamp_tmp")"
   tar_tmp=$(cd "$(dirname "$tar_tmp")" && pwd)/$(basename "$tar_tmp")
   stamp_tmp=$(cd "$(dirname "$stamp_tmp")" && pwd)/$(basename "$stamp_tmp")
-  rm -rf "$preseed_src"
+  rm -rf "$preseed_0_src"
   rm -f "$tar_tmp" "$stamp_tmp"
 
-  copy_stage0_tree_to "$preseed_src"
-  make -C "$preseed_src" test-amd64
+  copy_stage0_tree_to "$preseed_0_src"
+  make -C "$preseed_0_src" test-amd64
 
   (
-    cd "$preseed_src"
+    cd "$preseed_0_src"
     tar -cf "$tar_tmp" AMD64/bin
   )
   printf '%s\n' "$stage0_expected_head" > "$stamp_tmp"
-  mv "$tar_tmp" "$preseed_tar"
-  mv "$stamp_tmp" "$preseed_stamp"
+  mv "$tar_tmp" "$preseed_0_tar"
+  mv "$stamp_tmp" "$preseed_0_stamp"
 }
 
 copy_stage0_tree() {
@@ -249,11 +280,163 @@ copy_stage0_tree() {
 apply_preseed() {
   if ((preseed)); then
     if ((live_bootstrap)); then
-      tar -xf "$preseed_tar" -C "$rootfs"
+      tar -xf "$preseed_0_tar" -C "$rootfs"
     else
-      tar -xf "$preseed_tar" -C "$rootfs/stage0-posix"
+      tar -xf "$preseed_0_tar" -C "$rootfs/stage0-posix"
     fi
   fi
+}
+
+preseed_1_expected_sha() {
+  local checksum_path=$2
+  local file=$live_bootstrap_src/steps/$1/$1.amd64.checksums
+  local path
+  local sha
+
+  while read -r sha path; do
+    if [[ $path == "$checksum_path" ]]; then
+      printf '%s\n' "$sha"
+      return
+    fi
+  done < "$file"
+
+  echo "stage0-qemu: missing expected checksum for $checksum_path" >&2
+  exit 1
+}
+
+preseed_1_expected_stamp() {
+  local checksum_transcriber_sha
+  local simple_patch_sha
+
+  checksum_transcriber_sha=$(
+    preseed_1_expected_sha checksum-transcriber-1.0 \
+      /usr/bin/checksum-transcriber
+  )
+  simple_patch_sha=$(
+    preseed_1_expected_sha simple-patch-1.0 /usr/bin/simple-patch
+  )
+
+  cat <<EOF
+stage0-posix=$stage0_expected_head
+live-bootstrap=$live_bootstrap_expected_head
+checkpoint=simple-patch-1.0
+usr/bin/checksum-transcriber=$checksum_transcriber_sha
+usr/bin/simple-patch=$simple_patch_sha
+EOF
+}
+
+validate_preseed_1_tar() {
+  local tar_path=$1
+  local checksum_transcriber_sha
+  local contents
+  local expected_contents
+  local simple_patch_sha
+
+  expected_contents=$(printf '%s\n%s' \
+    usr/bin/checksum-transcriber \
+    usr/bin/simple-patch)
+  contents=$(tar -tf "$tar_path" | sort)
+  if [[ $contents != "$expected_contents" ]]; then
+    echo "stage0-qemu: unexpected preseed-1 tar contents:" >&2
+    printf '%s\n' "$contents" >&2
+    return 1
+  fi
+
+  rm -rf "$preseed_1_validate_dir"
+  mkdir -p "$preseed_1_validate_dir"
+  tar -xf "$tar_path" -C "$preseed_1_validate_dir"
+
+  checksum_transcriber_sha=$(
+    preseed_1_expected_sha checksum-transcriber-1.0 \
+      /usr/bin/checksum-transcriber
+  )
+  simple_patch_sha=$(
+    preseed_1_expected_sha simple-patch-1.0 /usr/bin/simple-patch
+  )
+
+  if ! sha256_matches \
+    "$preseed_1_validate_dir/usr/bin/checksum-transcriber" \
+    "$checksum_transcriber_sha"
+  then
+    echo "stage0-qemu: checksum-transcriber hash mismatch" >&2
+    return 1
+  fi
+  if ! sha256_matches \
+    "$preseed_1_validate_dir/usr/bin/simple-patch" \
+    "$simple_patch_sha"
+  then
+    echo "stage0-qemu: simple-patch hash mismatch" >&2
+    return 1
+  fi
+}
+
+preseed_1_is_current() {
+  [[ -f $preseed_1_tar ]] \
+    && [[ -f $preseed_1_stamp ]] \
+    && [[ $(<"$preseed_1_stamp") == "$(preseed_1_expected_stamp)" ]] \
+    && validate_preseed_1_tar "$preseed_1_tar"
+}
+
+decode_preseed_1_capture() {
+  local found_begin=0
+  local found_end=0
+  local in_payload=0
+  local line
+  local payload_tmp=$1
+  local tar_tmp=$2
+
+  : > "$payload_tmp"
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    if [[ $line == "$preseed_1_begin" ]]; then
+      found_begin=1
+      in_payload=1
+      continue
+    fi
+    if [[ $line == "$preseed_1_end" ]]; then
+      found_end=1
+      break
+    fi
+    if ((in_payload)); then
+      printf '%s\n' "$line" >> "$payload_tmp"
+    fi
+  done < "$preseed_1_log"
+
+  if ((found_begin == 0 || found_end == 0)); then
+    echo "stage0-qemu: missing preseed-1 capture in $preseed_1_log" >&2
+    return 1
+  fi
+
+  base64 -d "$payload_tmp" > "$tar_tmp"
+}
+
+build_preseed_1_tar() {
+  local payload_tmp=$preseed_1_tar.base64.tmp
+  local stamp_tmp=$preseed_1_stamp.tmp
+  local tar_tmp=$preseed_1_tar.tmp
+
+  if preseed_1_is_current; then
+    echo "stage0-qemu: using current preseed-1 tar: $preseed_1_tar"
+    return
+  fi
+
+  echo "stage0-qemu: building preseed-1 tar: $preseed_1_tar"
+  require_preseed_1_commands
+  build_preseed_0_tar
+  fetch_artifact "$kernel" "$kernel_url" "$kernel_sha"
+  fetch_artifact "$busybox" "$busybox_url" "$busybox_sha"
+
+  capture_preseed_1=1
+  qemu_log=$preseed_1_log
+  rm -f "$payload_tmp" "$stamp_tmp" "$tar_tmp" "$preseed_1_log"
+  build_initramfs
+  run_qemu
+  decode_preseed_1_capture "$payload_tmp" "$tar_tmp"
+  validate_preseed_1_tar "$tar_tmp"
+  preseed_1_expected_stamp > "$stamp_tmp"
+  mv "$tar_tmp" "$preseed_1_tar"
+  mv "$stamp_tmp" "$preseed_1_stamp"
+  rm -f "$payload_tmp"
 }
 
 generate_live_bootstrap_manifest() {
@@ -427,6 +610,7 @@ write_guest_config() {
     printf 'STAGE0_LIVE_BOOTSTRAP=%s\n' "$live_bootstrap"
     printf 'STAGE0_REPL=%s\n' "$repl"
     printf 'STAGE0_SUCCESS_MARKER=%s\n' "$success_marker"
+    printf 'STAGE0_CAPTURE_PRESEED_1=%s\n' "$capture_preseed_1"
   } > "$rootfs/etc/stage0-qemu.conf"
 }
 
@@ -504,8 +688,12 @@ if ((live_bootstrap)); then
   prepare_live_bootstrap_submodule
   prepare_live_bootstrap_inputs
 fi
+if ((build_preseed_1)); then
+  build_preseed_1_tar
+  exit 0
+fi
 if ((preseed)); then
-  build_preseed_tar
+  build_preseed_0_tar
 fi
 fetch_artifact "$kernel" "$kernel_url" "$kernel_sha"
 fetch_artifact "$busybox" "$busybox_url" "$busybox_sha"
