@@ -246,7 +246,7 @@ STAGE1_CHIBICC=$(STAGE1)/chibicc
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
 	$(MAKE) -C $(STAGE1) chibicc
 
-test: $(STAGE1)/.src-ready
+test: $(STAGE1_CHIBICC)
 	$(MAKE) -C $(STAGE1) test-compiler
 
 test-all: test test-stage2
@@ -265,9 +265,11 @@ The recipe enters the extracted tree with `$(MAKE) -C $(STAGE1) chibicc`.
 uses the extracted Makefile's normal `$(CC)` and `$(CFLAGS)` values, so
 compiler sources are still built with the host warning policy.
 
-The public `test` target follows the same extraction path but asks the
-extracted Makefile to run `test-compiler`. `test-all` is just an aggregate
-over the stage 1 and stage 2 test commands.
+The public `test` target depends on the real stage 1 compiler file before it
+asks the extracted Makefile to run `test-compiler`. That dependency keeps a
+parallel `test-all` from starting two recursive builds of
+`.make/stage1/chibicc` at once. `test-all` is just an aggregate over the stage
+1 and stage 2 test commands.
 
 ## Stage 2 orchestration
 

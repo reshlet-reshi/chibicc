@@ -14,9 +14,7 @@ omitting `.gitignore` and `.gitmodules`, against the root `Makefile`
 `DIST_FILES` list. New source distribution inputs must therefore be added to
 that explicit list or to an explicit omission policy.
 
-Build and test validation uses `meta/pdpmake.sh`, the repository-local wrapper
-around the pdpmake submodule. The full pdpmake `test-all` gate is part of
-this lint contract through the extra executable list below.
+Build and test validation belongs to `meta/check.sh`, not this fast lint pass.
 
 After per-file dispatch succeeds, `lint.py` runs these extra metadata
 validators.
@@ -24,4 +22,3 @@ validators.
 - `meta/README.py`
 - `meta/branches.py`
 - `meta/manifest.py`
-- `meta/test-pdpmake.sh`

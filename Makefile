@@ -169,7 +169,7 @@ STAGE1_CHIBICC=$(STAGE1)/chibicc
 $(STAGE1_CHIBICC): $(STAGE1)/.src-ready
 	$(MAKE) -C $(STAGE1) chibicc
 
-test: $(STAGE1)/.src-ready
+test: $(STAGE1_CHIBICC)
 	$(MAKE) -C $(STAGE1) test-compiler
 
 test-all: test test-stage2

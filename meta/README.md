@@ -20,6 +20,13 @@ here. Git submodules under `meta/` are listed as directory entries.
   - Branch inventory, including local unpushed archive and WIP branches.
 - `branches.py`
   - Enforces branch manifest entries against local and remote Git refs.
+- `check.md`
+  - Configures heavy executable checks for `meta/check.py`.
+- `check.py`
+  - Runs fast metadata lint plus configured full-check executables.
+- `check.sh`
+  - Self-locating Bash bootstrap for type-checking and invoking
+    `meta/check.py`.
 - `lint.md`
   - Configures extra executable metadata validators for `meta/lint.py`.
 - `lint.py`
@@ -40,4 +47,6 @@ here. Git submodules under `meta/` are listed as directory entries.
   - Repo-root reset helper for discarding local tracked, untracked, and ignored
     changes after confirmation.
 - `test-pdpmake.sh`
-  - Commit-gate wrapper that runs stage tests through pdpmake and cleans up.
+  - Serial pdpmake compatibility wrapper that runs `test-all` and cleans up.
+- `test-system-make.sh`
+  - System-make wrapper that runs parallel `test-all` and cleans up.
