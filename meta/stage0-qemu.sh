@@ -43,30 +43,53 @@ live_bootstrap_sources=$cache/live-bootstrap.sources
 live_bootstrap_distfiles=$cache/live-bootstrap-distfiles
 success_marker=STAGE0_QEMU_SANITY_OK
 live_bootstrap=0
-preseed=1
+preseed_level=0
+preseed_level_set=0
+preseed_level_requested=0
 repl=1
 build_preseed_1=0
 capture_preseed_1=0
 no_preseed_requested=0
+live_bootstrap_start_after=
+live_bootstrap_stop_after=simple-patch-1.0
 preseed_1_begin=STAGE0_PRESEED_1_TAR_BEGIN
 preseed_1_end=STAGE0_PRESEED_1_TAR_END
 
 usage() {
   cat <<EOF
 usage: meta/stage0-qemu.sh [--live-bootstrap] [--build-preseed-1]
-                           [--no-preseed] [--no-repl]
+                           [--preseed-N] [--no-preseed] [--no-repl]
 
 Boot stage0-posix in QEMU TCG with a pinned Linux kernel and BusyBox initramfs.
 By default the host builds or reuses an AMD64 preseed-0 tar, overlays it into
 the guest before boot, and drops into BusyBox ash after setup. With
 --no-preseed, the guest runs the AMD64 sanity seed. With --no-repl, the guest
 powers off after setup. With --live-bootstrap, the guest uses a chroot-style
-live-bootstrap rootfs truncated after the simple-patch-1.0 build. Unless
-overridden, live-bootstrap mode uses 4096M of guest RAM and a 7200-second
-headless timeout. With --build-preseed-1, the guest runs that live-bootstrap
+live-bootstrap rootfs truncated after the mes-0.27.1 build. Unless overridden,
+live-bootstrap mode uses 4096M of guest RAM and a 7200-second headless timeout.
+The --preseed-N flags select the highest preseed level to apply; currently
+--preseed-0 and --preseed-1 are supported, and --live-bootstrap defaults to
+--preseed-1. With --build-preseed-1, the guest runs the simple-patch-1.0
 checkpoint headlessly, emits the built checksum-transcriber and simple-patch
 binaries over serial, and stores the validated capture as preseed-1.tar.
 EOF
+}
+
+parse_preseed_level() {
+  local level=${1#--preseed-}
+
+  if [[ ! $level =~ ^[0-9]+$ ]]; then
+    echo "invalid preseed level: $1" >&2
+    exit 1
+  fi
+  if ((level > 1)); then
+    echo "unsupported preseed level: $level" >&2
+    exit 1
+  fi
+
+  preseed_level=$level
+  preseed_level_set=1
+  preseed_level_requested=1
 }
 
 while (($#)); do
@@ -80,7 +103,11 @@ while (($#)); do
       ;;
     --no-preseed)
       no_preseed_requested=1
-      preseed=0
+      preseed_level=-1
+      preseed_level_set=1
+      ;;
+    --preseed-[0-9]*)
+      parse_preseed_level "$1"
       ;;
     --no-repl)
       repl=0
@@ -104,9 +131,24 @@ if ((build_preseed_1)); then
     exit 1
   fi
   live_bootstrap=1
-  preseed=1
+  preseed_level=0
+  preseed_level_set=1
   repl=0
   success_marker=STAGE0_LIVE_BOOTSTRAP_OK
+fi
+
+if ((live_bootstrap)) && ((preseed_level_set == 0)); then
+  preseed_level=1
+fi
+if ((no_preseed_requested)) && ((preseed_level_requested)); then
+  echo "--no-preseed cannot be combined with --preseed-N" >&2
+  exit 1
+fi
+if ((live_bootstrap == 0)) && ((build_preseed_1 == 0)) \
+  && ((preseed_level > 0))
+then
+  echo "--preseed-$preseed_level requires --live-bootstrap" >&2
+  exit 1
 fi
 
 if ((live_bootstrap)) && [[ -z ${STAGE0_QEMU_MEMORY+x} ]]; then
@@ -152,6 +194,23 @@ sha256_matches() {
   local expected=$2
 
   printf '%s  %s\n' "$expected" "$path" | sha256sum -c - >/dev/null 2>&1
+}
+
+manifest_build_name() {
+  local line=$1
+
+  if [[ $line =~ ^build:[[:space:]]+([^[:space:]#]+) ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  fi
+}
+
+configure_live_bootstrap_manifest() {
+  live_bootstrap_stop_after=mes-0.27.1
+  if ((preseed_level >= 1)); then
+    live_bootstrap_start_after=simple-patch-1.0
+  else
+    live_bootstrap_start_after=
+  fi
 }
 
 fetch_artifact() {
@@ -278,12 +337,18 @@ copy_stage0_tree() {
 }
 
 apply_preseed() {
-  if ((preseed)); then
-    if ((live_bootstrap)); then
-      tar -xf "$preseed_0_tar" -C "$rootfs"
-    else
-      tar -xf "$preseed_0_tar" -C "$rootfs/stage0-posix"
+  if ((preseed_level < 0)); then
+    return
+  fi
+
+  if ((live_bootstrap)); then
+    tar -xf "$preseed_0_tar" -C "$rootfs"
+    if ((preseed_level >= 1)); then
+      validate_preseed_1_tar "$preseed_1_tar"
+      tar -xf "$preseed_1_tar" -C "$rootfs"
     fi
+  else
+    tar -xf "$preseed_0_tar" -C "$rootfs/stage0-posix"
   fi
 }
 
@@ -412,6 +477,11 @@ decode_preseed_1_capture() {
 
 build_preseed_1_tar() {
   local payload_tmp=$preseed_1_tar.base64.tmp
+  local saved_capture_preseed_1
+  local saved_preseed_level
+  local saved_qemu_log
+  local saved_start_after
+  local saved_stop_after
   local stamp_tmp=$preseed_1_stamp.tmp
   local tar_tmp=$preseed_1_tar.tmp
 
@@ -426,11 +496,29 @@ build_preseed_1_tar() {
   fetch_artifact "$kernel" "$kernel_url" "$kernel_sha"
   fetch_artifact "$busybox" "$busybox_url" "$busybox_sha"
 
+  saved_capture_preseed_1=$capture_preseed_1
+  saved_preseed_level=$preseed_level
+  saved_qemu_log=$qemu_log
+  saved_start_after=$live_bootstrap_start_after
+  saved_stop_after=$live_bootstrap_stop_after
+
   capture_preseed_1=1
+  preseed_level=0
   qemu_log=$preseed_1_log
+  live_bootstrap_start_after=
+  live_bootstrap_stop_after=simple-patch-1.0
+
+  prepare_live_bootstrap_inputs
   rm -f "$payload_tmp" "$stamp_tmp" "$tar_tmp" "$preseed_1_log"
   build_initramfs
   run_qemu
+
+  capture_preseed_1=$saved_capture_preseed_1
+  preseed_level=$saved_preseed_level
+  qemu_log=$saved_qemu_log
+  live_bootstrap_start_after=$saved_start_after
+  live_bootstrap_stop_after=$saved_stop_after
+
   decode_preseed_1_capture "$payload_tmp" "$tar_tmp"
   validate_preseed_1_tar "$tar_tmp"
   preseed_1_expected_stamp > "$stamp_tmp"
@@ -440,22 +528,43 @@ build_preseed_1_tar() {
 }
 
 generate_live_bootstrap_manifest() {
-  local found=0
+  local build_name
+  local found_start=0
+  local found_stop=0
+  local line
   local temporary=$live_bootstrap_manifest.tmp
+
+  if [[ -z $live_bootstrap_start_after ]]; then
+    found_start=1
+  fi
 
   mkdir -p "$(dirname "$live_bootstrap_manifest")"
   rm -f "$temporary"
+  : > "$temporary"
 
   while IFS= read -r line; do
+    build_name=$(manifest_build_name "$line")
+    if ((found_start == 0)); then
+      if [[ $build_name == "$live_bootstrap_start_after" ]]; then
+        found_start=1
+      fi
+      continue
+    fi
+
     printf '%s\n' "$line" >> "$temporary"
-    if [[ $line =~ ^build:[[:space:]]+simple-patch-1\.0([[:space:]]|$) ]]; then
-      found=1
+    if [[ $build_name == "$live_bootstrap_stop_after" ]]; then
+      found_stop=1
       break
     fi
   done < "$live_bootstrap_src/steps/manifest"
 
-  if ((found == 0)); then
-    echo "stage0-qemu: missing simple-patch-1.0 manifest entry" >&2
+  if ((found_start == 0)); then
+    echo "stage0-qemu: missing $live_bootstrap_start_after manifest entry" >&2
+    rm -f "$temporary"
+    exit 1
+  fi
+  if ((found_stop == 0)); then
+    echo "stage0-qemu: missing $live_bootstrap_stop_after manifest entry" >&2
     rm -f "$temporary"
     exit 1
   fi
@@ -686,13 +795,19 @@ require_commands
 prepare_stage0_submodules
 if ((live_bootstrap)); then
   prepare_live_bootstrap_submodule
-  prepare_live_bootstrap_inputs
 fi
 if ((build_preseed_1)); then
   build_preseed_1_tar
   exit 0
 fi
-if ((preseed)); then
+if ((live_bootstrap)) && ((preseed_level >= 1)); then
+  build_preseed_1_tar
+fi
+if ((live_bootstrap)); then
+  configure_live_bootstrap_manifest
+  prepare_live_bootstrap_inputs
+fi
+if ((preseed_level >= 0)); then
   build_preseed_0_tar
 fi
 fetch_artifact "$kernel" "$kernel_url" "$kernel_sha"
