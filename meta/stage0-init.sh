@@ -1,16 +1,18 @@
-#!/bin/sh
+#!/bin/busybox sh
+# shellcheck shell=sh
 set -u
 
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export PATH
+BB=/bin/busybox
 
 mount_fs() {
   type=$1
   source=$2
   target=$3
 
-  mkdir -p "$target"
-  mount -t "$type" "$source" "$target" >/dev/null 2>&1 || true
+  "$BB" mkdir -p "$target"
+  "$BB" mount -t "$type" "$source" "$target" >/dev/null 2>&1 || true
 }
 
 mount_fs proc proc /proc
@@ -18,10 +20,10 @@ mount_fs sysfs sysfs /sys
 mount_fs devtmpfs devtmpfs /dev
 
 if [ ! -e /dev/console ]; then
-  mknod /dev/console c 5 1 >/dev/null 2>&1 || true
+  "$BB" mknod /dev/console c 5 1 >/dev/null 2>&1 || true
 fi
 if [ ! -e /dev/null ]; then
-  mknod /dev/null c 1 3 >/dev/null 2>&1 || true
+  "$BB" mknod /dev/null c 1 3 >/dev/null 2>&1 || true
 fi
 
 exec </dev/console >/dev/console 2>&1 || true
@@ -57,12 +59,12 @@ fi
 
 if [ "$STAGE0_REPL" = 1 ]; then
   echo "stage0-qemu: entering BusyBox ash"
-  exec /bin/ash
+  exec "$BB" ash
 fi
 
-poweroff -f >/dev/null 2>&1 || poweroff >/dev/null 2>&1 || true
-halt -f >/dev/null 2>&1 || reboot -f >/dev/null 2>&1 || true
+"$BB" poweroff -f >/dev/null 2>&1 || "$BB" poweroff >/dev/null 2>&1 || true
+"$BB" halt -f >/dev/null 2>&1 || "$BB" reboot -f >/dev/null 2>&1 || true
 
 echo "stage0-qemu: unable to power off" >&2
-sleep 5
+"$BB" sleep 5
 exit "$status"

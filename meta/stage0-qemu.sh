@@ -131,17 +131,6 @@ prepare_stage0_submodules() {
   fi
 }
 
-install_busybox_applets() {
-  local applet
-  local target
-
-  while IFS= read -r applet; do
-    target=$rootfs/$applet
-    mkdir -p "$(dirname "$target")"
-    ln -sf /bin/busybox "$target"
-  done < <("$busybox" --list-full)
-}
-
 copy_stage0_tree() {
   mkdir -p "$rootfs/stage0-posix"
   (
@@ -164,7 +153,6 @@ build_initramfs() {
   mkdir -p "$rootfs/tmp"
 
   install -m 0755 "$busybox" "$rootfs/bin/busybox"
-  install_busybox_applets
   install -m 0755 "$stage0_init" "$rootfs/init"
   write_guest_config
   copy_stage0_tree
