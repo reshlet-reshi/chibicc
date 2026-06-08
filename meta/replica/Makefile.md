@@ -94,23 +94,27 @@ TEST_SRCS=\
 
 TESTS=$(TEST_SRCS:.c=.exe)
 TEST_LINK_CC?=$(CC)
+TEST_DEPS=\
+	test/test.h \
+	test/include1.h \
+	...
+	include/stdnoreturn.h
 
 test/shared/common.o: chibicc test/shared/common.c
 	./chibicc -Itest -c -o test/shared/common.o test/shared/common.c
 
 test-compiler: test-compiler-exes test-compiler-driver
 
-test-compiler-exes: chibicc test/shared/common.o
-	for src in $(TEST_SRCS); do \
-		stem=$${src#test/}; \
-		stem=$${stem%.c}; \
-		obj=test/$$stem.o; \
-		exe=test/$$stem.exe; \
-		./chibicc -Itest -c -o $$obj $$src || exit 1; \
-		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.o \
-			|| exit 1; \
-	done
+test-compiler-exes: $(TESTS)
 	for i in $(TESTS); do echo $$i; ./$$i || exit 1; echo; done
+
+test/arith.exe: chibicc test/arith.c test/shared/common.o \
+	$(TEST_DEPS)
+	./chibicc -Itest -c -o test/arith.o test/arith.c
+	$(TEST_LINK_CC) -pthread -o test/arith.exe test/arith.o \
+		test/shared/common.o
+
+...
 
 test-compiler-driver: chibicc test/driver.sh
 	test/driver.sh ./chibicc
@@ -124,6 +128,11 @@ each test source to its direct executable path with the same stem, so
 orchestrator when compiler-building and test-linking need different drivers.
 It is used only for final executable links.
 
+`TEST_DEPS` is a broad dependency list for shared test headers and local
+include headers. Every generated test executable depends on it so edits to
+test support headers or bundled headers rebuild the test programs
+conservatively.
+
 `test/shared/common.o` is a real generated object target. It is compiled once
 from `test/shared/common.c` with the local `./chibicc`, avoiding a repeated
 helper compile for every test executable while still testing the compiler under
@@ -133,26 +142,24 @@ test.
 aggregates `test-compiler-exes` and `test-compiler-driver`, making each half
 independently invocable.
 
-`test-compiler-exes` depends on `chibicc` and `test/shared/common.o`, so the
-local compiler file and shared helper object are rebuilt before test objects
-are compiled. The recipe loops over `$(TEST_SRCS)`.
+`test-compiler-exes` depends on `$(TESTS)`, so Make builds each generated test
+executable through its own real file target before the aggregate recipe runs
+the executables in `$(TESTS)` order.
 
-For each source, `$${src#test/}` removes the leading `test/`, and
-`$${stem%.c}` removes the `.c` suffix. `test/arith.c` therefore becomes the
-stem `arith`, the object path `test/arith.o`, and the executable path
-`test/arith.exe`.
+The Makefile contains one explicit executable rule per `TEST_SRCS` entry. The
+representative `test/arith.exe` rule shows the shape: it depends on the local
+compiler, its source file, `test/shared/common.o`, and `$(TEST_DEPS)`. Its
+recipe compiles the matching `test/arith.o` with `./chibicc -Itest`, then
+links `test/arith.exe` with `$(TEST_LINK_CC) -pthread`.
 
 The compile step always uses the local stage compiler. `./chibicc` finds its
 bundled headers from the `include/` directory next to its own executable, while
 `-Itest` makes the test support headers available for angle includes such as
 the macro-expanded `include4.h` case. The link step combines the test object
 with `test/shared/common.o` and writes the executable next to the test source.
-Each command exits the loop immediately on failure.
 
-After the loop, `test-compiler-exes` runs each executable in `$(TESTS)`,
-printing the path before running it. `test-compiler-driver` depends only on
-the local compiler and `test/driver.sh`, so it can run the driver checks
-without first running the executable test loop.
+`test-compiler-driver` depends only on the local compiler and `test/driver.sh`,
+so it can run the driver checks without first running the executable test loop.
 
 The link step uses `$(TEST_LINK_CC)` without `$(CFLAGS)`. Stage 2 overrides
 `TEST_LINK_CC` to the host compiler because chibicc does not accept every
