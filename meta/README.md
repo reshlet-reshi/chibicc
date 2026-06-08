@@ -51,7 +51,8 @@ here. Git submodules under `meta/` are listed as directory entries.
 - `stage0-init.sh`
   - Guest init script copied into the experimental stage0 QEMU initramfs.
 - `stage0-qemu.sh`
-  - Manual QEMU harness for booting the pinned stage0-posix experiment.
+  - Manual QEMU harness for booting the pinned stage0-posix experiment, with
+    optional preseed cache support.
 - `test-pdpmake.sh`
   - Serial pdpmake compatibility wrapper that runs `test-all` and cleans up.
 - `test-system-make.sh`

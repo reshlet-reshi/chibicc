@@ -29,21 +29,29 @@ busybox=$cache/busybox
 rootfs=$cache/rootfs
 initramfs=$cache/initramfs.cpio.gz
 qemu_log=$cache/qemu.log
+preseed_tar=$cache/preseed.tar
+preseed_stamp=$cache/preseed.stage0-head
+preseed_src=$cache/preseed-src
 success_marker=STAGE0_QEMU_SANITY_OK
+preseed=0
 repl=0
 
 usage() {
   cat <<EOF
-usage: meta/stage0-qemu.sh [--repl]
+usage: meta/stage0-qemu.sh [--preseed] [--repl]
 
 Boot stage0-posix in QEMU TCG with a pinned Linux kernel and BusyBox initramfs.
 By default the guest runs the AMD64 sanity seed and powers off. With --repl,
-the guest drops into BusyBox ash after setup.
+the guest drops into BusyBox ash after setup. With --preseed, the host builds
+or reuses an AMD64 preseed tar and overlays it into the guest before boot.
 EOF
 }
 
 while (($#)); do
   case $1 in
+    --preseed)
+      preseed=1
+      ;;
     --repl)
       repl=1
       ;;
@@ -77,6 +85,10 @@ require_commands() {
   require_command sort
   require_command tar
   require_command "$qemu"
+}
+
+require_preseed_commands() {
+  require_command make
 }
 
 sha256_matches() {
@@ -131,12 +143,61 @@ prepare_stage0_submodules() {
   fi
 }
 
-copy_stage0_tree() {
-  mkdir -p "$rootfs/stage0-posix"
+copy_stage0_tree_to() {
+  local destination=$1
+
+  mkdir -p "$destination"
   (
     cd "$stage0_src"
     tar --exclude=.git --exclude='*/.git' -cf - .
-  ) | tar -xf - -C "$rootfs/stage0-posix"
+  ) | tar -xf - -C "$destination"
+}
+
+preseed_is_current() {
+  [[ -f $preseed_tar ]] \
+    && [[ -f $preseed_stamp ]] \
+    && [[ $(<"$preseed_stamp") == "$stage0_expected_head" ]]
+}
+
+build_preseed_tar() {
+  local stamp_tmp
+  local tar_tmp
+
+  if preseed_is_current; then
+    echo "stage0-qemu: using current preseed tar: $preseed_tar"
+    return
+  fi
+
+  echo "stage0-qemu: building preseed tar: $preseed_tar"
+  require_preseed_commands
+  tar_tmp=$preseed_tar.tmp
+  stamp_tmp=$preseed_stamp.tmp
+  mkdir -p "$(dirname "$tar_tmp")" "$(dirname "$stamp_tmp")"
+  tar_tmp=$(cd "$(dirname "$tar_tmp")" && pwd)/$(basename "$tar_tmp")
+  stamp_tmp=$(cd "$(dirname "$stamp_tmp")" && pwd)/$(basename "$stamp_tmp")
+  rm -rf "$preseed_src"
+  rm -f "$tar_tmp" "$stamp_tmp"
+
+  copy_stage0_tree_to "$preseed_src"
+  make -C "$preseed_src" test-amd64
+
+  (
+    cd "$preseed_src"
+    tar -cf "$tar_tmp" AMD64/bin
+  )
+  printf '%s\n' "$stage0_expected_head" > "$stamp_tmp"
+  mv "$tar_tmp" "$preseed_tar"
+  mv "$stamp_tmp" "$preseed_stamp"
+}
+
+copy_stage0_tree() {
+  copy_stage0_tree_to "$rootfs/stage0-posix"
+}
+
+apply_preseed() {
+  if ((preseed)); then
+    tar -xf "$preseed_tar" -C "$rootfs/stage0-posix"
+  fi
 }
 
 write_guest_config() {
@@ -156,6 +217,7 @@ build_initramfs() {
   install -m 0755 "$stage0_init" "$rootfs/init"
   write_guest_config
   copy_stage0_tree
+  apply_preseed
 
   mkdir -p "$(dirname "$initramfs")"
   (
@@ -209,6 +271,9 @@ run_qemu() {
 
 require_commands
 prepare_stage0_submodules
+if ((preseed)); then
+  build_preseed_tar
+fi
 fetch_artifact "$kernel" "$kernel_url" "$kernel_sha"
 fetch_artifact "$busybox" "$busybox_url" "$busybox_sha"
 build_initramfs
