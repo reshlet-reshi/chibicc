@@ -51,7 +51,7 @@ By default the host builds or reuses an AMD64 preseed tar, overlays it into the
 guest before boot, and drops into BusyBox ash after setup. With --no-preseed,
 the guest runs the AMD64 sanity seed. With --no-repl, the guest powers off
 after setup. With --live-bootstrap, the guest uses a chroot-style
-live-bootstrap rootfs truncated after the first gcc-4.0.4 build. Unless
+live-bootstrap rootfs truncated after the simple-patch-1.0 build. Unless
 overridden, live-bootstrap mode uses 4096M of guest RAM and a 7200-second
 headless timeout.
 EOF
@@ -265,14 +265,14 @@ generate_live_bootstrap_manifest() {
 
   while IFS= read -r line; do
     printf '%s\n' "$line" >> "$temporary"
-    if [[ $line =~ ^build:[[:space:]]+gcc-4\.0\.4([[:space:]]|$) ]]; then
+    if [[ $line =~ ^build:[[:space:]]+simple-patch-1\.0([[:space:]]|$) ]]; then
       found=1
       break
     fi
   done < "$live_bootstrap_src/steps/manifest"
 
   if ((found == 0)); then
-    echo "stage0-qemu: missing first gcc-4.0.4 manifest entry" >&2
+    echo "stage0-qemu: missing simple-patch-1.0 manifest entry" >&2
     rm -f "$temporary"
     exit 1
   fi
@@ -293,6 +293,7 @@ generate_live_bootstrap_sources() {
 
   mkdir -p "$(dirname "$live_bootstrap_sources")"
   rm -f "$temporary"
+  : > "$temporary"
 
   while IFS= read -r line; do
     if [[ ! $line =~ ^build:[[:space:]]+([^[:space:]#]+) ]]; then
