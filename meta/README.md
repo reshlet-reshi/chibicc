@@ -9,6 +9,8 @@ here. Git submodules under `meta/` are listed as directory entries.
   - Git submodule containing pdpmake for Makefile compatibility checks.
 - `replica/`
   - Per-file documentation subtree for paths listed in `meta/manifest.md`.
+- `stage0-posix/`
+  - Git submodule containing the pinned stage0-posix bootstrap experiment.
 - `AGENTS.md`
   - Agent policy requiring clean commits, passing meta lint, and keeping this
     README current.
@@ -46,6 +48,10 @@ here. Git submodules under `meta/` are listed as directory entries.
 - `reset.sh`
   - Repo-root reset helper for discarding local tracked, untracked, and ignored
     changes after confirmation.
+- `stage0-init.sh`
+  - Guest init script copied into the experimental stage0 QEMU initramfs.
+- `stage0-qemu.sh`
+  - Manual QEMU harness for booting the pinned stage0-posix experiment.
 - `test-pdpmake.sh`
   - Serial pdpmake compatibility wrapper that runs `test-all` and cleans up.
 - `test-system-make.sh`

@@ -1,3 +1,6 @@
 [submodule "meta/pdpmake"]
 	path = meta/pdpmake
 	url = https://github.com/reshlet-reshi/pdpmake
+[submodule "meta/stage0-posix"]
+	path = meta/stage0-posix
+	url = https://github.com/reshlet-reshi/stage0-posix.git

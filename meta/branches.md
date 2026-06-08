@@ -29,6 +29,12 @@ new commits.
   - Upstream / relation: no upstream
   - Status: Preserves the larger overgrown WIP snapshot for reference.
   - Local unpushed: Has no upstream and is intentionally local.
+- `wip/stage0-qemu`
+  - Kind: local WIP
+  - Tip: current working branch tip
+  - Upstream / relation: no upstream
+  - Status: Experimental stage0-posix QEMU bootstrap harness branch.
+  - Local unpushed: Has no upstream and is intentionally local.
 - `origin/reshi`
   - Kind: remote-tracking
   - Tip: `dd4a651 Rename compiler source list`
