@@ -33,27 +33,28 @@ preseed_tar=$cache/preseed.tar
 preseed_stamp=$cache/preseed.stage0-head
 preseed_src=$cache/preseed-src
 success_marker=STAGE0_QEMU_SANITY_OK
-preseed=0
-repl=0
+preseed=1
+repl=1
 
 usage() {
   cat <<EOF
-usage: meta/stage0-qemu.sh [--preseed] [--repl]
+usage: meta/stage0-qemu.sh [--no-preseed] [--no-repl]
 
 Boot stage0-posix in QEMU TCG with a pinned Linux kernel and BusyBox initramfs.
-By default the guest runs the AMD64 sanity seed and powers off. With --repl,
-the guest drops into BusyBox ash after setup. With --preseed, the host builds
-or reuses an AMD64 preseed tar and overlays it into the guest before boot.
+By default the host builds or reuses an AMD64 preseed tar, overlays it into the
+guest before boot, and drops into BusyBox ash after setup. With --no-preseed,
+the guest runs the AMD64 sanity seed. With --no-repl, the guest powers off
+after setup.
 EOF
 }
 
 while (($#)); do
   case $1 in
-    --preseed)
-      preseed=1
+    --no-preseed)
+      preseed=0
       ;;
-    --repl)
-      repl=1
+    --no-repl)
+      repl=0
       ;;
     -h | --help)
       usage
