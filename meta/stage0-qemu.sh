@@ -38,6 +38,10 @@ preseed_1_tar=$cache/preseed-1.tar
 preseed_1_stamp=$cache/preseed-1.stamp
 preseed_1_log=$cache/preseed-1.log
 preseed_1_validate_dir=$cache/preseed-1-validate
+preseed_2_tar=$cache/preseed-2.tar
+preseed_2_stamp=$cache/preseed-2.stamp
+preseed_2_log=$cache/preseed-2.log
+preseed_2_validate_dir=$cache/preseed-2-validate
 live_bootstrap_manifest=$cache/live-bootstrap.manifest
 live_bootstrap_sources=$cache/live-bootstrap.sources
 live_bootstrap_distfiles=$cache/live-bootstrap-distfiles
@@ -48,16 +52,22 @@ preseed_level_set=0
 preseed_level_requested=0
 repl=1
 build_preseed_1=0
+build_preseed_2=0
 capture_preseed_1=0
+capture_preseed_2=0
 no_preseed_requested=0
 live_bootstrap_start_after=
 live_bootstrap_stop_after=simple-patch-1.0
 preseed_1_begin=STAGE0_PRESEED_1_TAR_BEGIN
 preseed_1_end=STAGE0_PRESEED_1_TAR_END
+preseed_2_begin=STAGE0_PRESEED_2_TAR_BEGIN
+preseed_2_end=STAGE0_PRESEED_2_TAR_END
+mes_checksums=$live_bootstrap_src/steps/mes-0.27.1/mes-0.27.1.amd64.checksums
 
 usage() {
   cat <<EOF
-usage: meta/stage0-qemu.sh [--live-bootstrap] [--build-preseed-1]
+usage: meta/stage0-qemu.sh [--live-bootstrap]
+                           [--build-preseed-1 | --build-preseed-2]
                            [--preseed-N] [--no-preseed] [--no-repl]
 
 Boot stage0-posix in QEMU TCG with a pinned Linux kernel and BusyBox initramfs.
@@ -71,7 +81,10 @@ The --preseed-N flags select the highest preseed level to apply; currently
 --preseed-0 and --preseed-1 are supported, and --live-bootstrap defaults to
 --preseed-1. With --build-preseed-1, the guest runs the simple-patch-1.0
 checkpoint headlessly, emits the built checksum-transcriber and simple-patch
-binaries over serial, and stores the validated capture as preseed-1.tar.
+binaries over serial, and stores the validated capture as preseed-1.tar. With
+--build-preseed-2, the guest runs through mes-0.27.1, emits the Mes package
+over serial, and stores the validated capture as preseed-2.tar. Set
+STAGE0_QEMU_TIMEOUT=0 to disable the headless timeout for long manual runs.
 EOF
 }
 
@@ -101,6 +114,9 @@ while (($#)); do
     --build-preseed-1)
       build_preseed_1=1
       ;;
+    --build-preseed-2)
+      build_preseed_2=1
+      ;;
     --no-preseed)
       no_preseed_requested=1
       preseed_level=-1
@@ -125,13 +141,21 @@ while (($#)); do
   shift
 done
 
-if ((build_preseed_1)); then
+if ((build_preseed_1)) && ((build_preseed_2)); then
+  echo "--build-preseed-1 cannot be combined with --build-preseed-2" >&2
+  exit 1
+fi
+
+if ((build_preseed_1 || build_preseed_2)); then
   if ((no_preseed_requested)); then
-    echo "--build-preseed-1 requires preseed-0; drop --no-preseed" >&2
+    echo "--build-preseed requires preseeds; drop --no-preseed" >&2
     exit 1
   fi
   live_bootstrap=1
   preseed_level=0
+  if ((build_preseed_2)); then
+    preseed_level=1
+  fi
   preseed_level_set=1
   repl=0
   success_marker=STAGE0_LIVE_BOOTSTRAP_OK
@@ -145,6 +169,7 @@ if ((no_preseed_requested)) && ((preseed_level_requested)); then
   exit 1
 fi
 if ((live_bootstrap == 0)) && ((build_preseed_1 == 0)) \
+  && ((build_preseed_2 == 0)) \
   && ((preseed_level > 0))
 then
   echo "--preseed-$preseed_level requires --live-bootstrap" >&2
@@ -186,6 +211,10 @@ require_live_bootstrap_commands() {
 }
 
 require_preseed_1_commands() {
+  require_command base64
+}
+
+require_preseed_2_commands() {
   require_command base64
 }
 
@@ -442,6 +471,69 @@ preseed_1_is_current() {
     && validate_preseed_1_tar "$preseed_1_tar"
 }
 
+preseed_2_expected_stamp() {
+  cat <<EOF
+stage0-posix=$stage0_expected_head
+live-bootstrap=$live_bootstrap_expected_head
+checkpoint=mes-0.27.1
+checksums:
+EOF
+  cat "$mes_checksums"
+}
+
+validate_preseed_2_tar() {
+  local contents
+  local path
+  local rel_path
+  local sha
+  local tar_path=$1
+
+  contents=$(tar -tf "$tar_path" | sort)
+  while IFS= read -r path; do
+    if [[ $path == /* || $path == .. || $path == ../* \
+      || $path == */.. || $path == */../* ]]
+    then
+      echo "stage0-qemu: unsafe preseed-2 path: $path" >&2
+      return 1
+    fi
+    case $path in
+      usr/bin/mes-m2 | \
+        usr/bin/mescc.scm | \
+        usr/lib/x86_64-mes/* | \
+        usr/lib/linux/x86_64-mes/* | \
+        usr/include/mes/*)
+        ;;
+      *)
+        echo "stage0-qemu: unexpected preseed-2 path: $path" >&2
+        return 1
+        ;;
+    esac
+  done <<< "$contents"
+
+  rm -rf "$preseed_2_validate_dir"
+  mkdir -p "$preseed_2_validate_dir"
+  tar -xf "$tar_path" -C "$preseed_2_validate_dir"
+
+  while read -r sha path; do
+    rel_path=${path#/}
+    if [[ ! -f $preseed_2_validate_dir/$rel_path ]]; then
+      echo "stage0-qemu: missing preseed-2 path: $rel_path" >&2
+      return 1
+    fi
+    if ! sha256_matches "$preseed_2_validate_dir/$rel_path" "$sha"; then
+      echo "stage0-qemu: preseed-2 hash mismatch: $rel_path" >&2
+      return 1
+    fi
+  done < "$mes_checksums"
+}
+
+preseed_2_is_current() {
+  [[ -f $preseed_2_tar ]] \
+    && [[ -f $preseed_2_stamp ]] \
+    && [[ $(<"$preseed_2_stamp") == "$(preseed_2_expected_stamp)" ]] \
+    && validate_preseed_2_tar "$preseed_2_tar"
+}
+
 decode_preseed_1_capture() {
   local found_begin=0
   local found_end=0
@@ -469,6 +561,39 @@ decode_preseed_1_capture() {
 
   if ((found_begin == 0 || found_end == 0)); then
     echo "stage0-qemu: missing preseed-1 capture in $preseed_1_log" >&2
+    return 1
+  fi
+
+  base64 -d "$payload_tmp" > "$tar_tmp"
+}
+
+decode_preseed_2_capture() {
+  local found_begin=0
+  local found_end=0
+  local in_payload=0
+  local line
+  local payload_tmp=$1
+  local tar_tmp=$2
+
+  : > "$payload_tmp"
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    if [[ $line == "$preseed_2_begin" ]]; then
+      found_begin=1
+      in_payload=1
+      continue
+    fi
+    if [[ $line == "$preseed_2_end" ]]; then
+      found_end=1
+      break
+    fi
+    if ((in_payload)); then
+      printf '%s\n' "$line" >> "$payload_tmp"
+    fi
+  done < "$preseed_2_log"
+
+  if ((found_begin == 0 || found_end == 0)); then
+    echo "stage0-qemu: missing preseed-2 capture in $preseed_2_log" >&2
     return 1
   fi
 
@@ -524,6 +649,63 @@ build_preseed_1_tar() {
   preseed_1_expected_stamp > "$stamp_tmp"
   mv "$tar_tmp" "$preseed_1_tar"
   mv "$stamp_tmp" "$preseed_1_stamp"
+  rm -f "$payload_tmp"
+}
+
+build_preseed_2_tar() {
+  local payload_tmp=$preseed_2_tar.base64.tmp
+  local saved_capture_preseed_1
+  local saved_capture_preseed_2
+  local saved_preseed_level
+  local saved_qemu_log
+  local saved_start_after
+  local saved_stop_after
+  local stamp_tmp=$preseed_2_stamp.tmp
+  local tar_tmp=$preseed_2_tar.tmp
+
+  if preseed_2_is_current; then
+    echo "stage0-qemu: using current preseed-2 tar: $preseed_2_tar"
+    return
+  fi
+
+  echo "stage0-qemu: building preseed-2 tar: $preseed_2_tar"
+  require_preseed_2_commands
+  build_preseed_0_tar
+  build_preseed_1_tar
+  fetch_artifact "$kernel" "$kernel_url" "$kernel_sha"
+  fetch_artifact "$busybox" "$busybox_url" "$busybox_sha"
+
+  saved_capture_preseed_1=$capture_preseed_1
+  saved_capture_preseed_2=$capture_preseed_2
+  saved_preseed_level=$preseed_level
+  saved_qemu_log=$qemu_log
+  saved_start_after=$live_bootstrap_start_after
+  saved_stop_after=$live_bootstrap_stop_after
+
+  capture_preseed_1=0
+  capture_preseed_2=1
+  preseed_level=1
+  qemu_log=$preseed_2_log
+  live_bootstrap_start_after=simple-patch-1.0
+  live_bootstrap_stop_after=mes-0.27.1
+
+  prepare_live_bootstrap_inputs
+  rm -f "$payload_tmp" "$stamp_tmp" "$tar_tmp" "$preseed_2_log"
+  build_initramfs
+  run_qemu
+
+  capture_preseed_1=$saved_capture_preseed_1
+  capture_preseed_2=$saved_capture_preseed_2
+  preseed_level=$saved_preseed_level
+  qemu_log=$saved_qemu_log
+  live_bootstrap_start_after=$saved_start_after
+  live_bootstrap_stop_after=$saved_stop_after
+
+  decode_preseed_2_capture "$payload_tmp" "$tar_tmp"
+  validate_preseed_2_tar "$tar_tmp"
+  preseed_2_expected_stamp > "$stamp_tmp"
+  mv "$tar_tmp" "$preseed_2_tar"
+  mv "$stamp_tmp" "$preseed_2_stamp"
   rm -f "$payload_tmp"
 }
 
@@ -720,6 +902,7 @@ write_guest_config() {
     printf 'STAGE0_REPL=%s\n' "$repl"
     printf 'STAGE0_SUCCESS_MARKER=%s\n' "$success_marker"
     printf 'STAGE0_CAPTURE_PRESEED_1=%s\n' "$capture_preseed_1"
+    printf 'STAGE0_CAPTURE_PRESEED_2=%s\n' "$capture_preseed_2"
   } > "$rootfs/etc/stage0-qemu.conf"
 }
 
@@ -771,7 +954,10 @@ run_qemu() {
 
   : > "$qemu_log"
   set +e
-  if command -v timeout >/dev/null 2>&1; then
+  if [[ $timeout_seconds == 0 ]]; then
+    "${qemu_argv[@]}" 2>&1 | tee "$qemu_log"
+    qemu_status=${PIPESTATUS[0]}
+  elif command -v timeout >/dev/null 2>&1; then
     timeout "$timeout_seconds" "${qemu_argv[@]}" 2>&1 | tee "$qemu_log"
     qemu_status=${PIPESTATUS[0]}
   else
@@ -798,6 +984,10 @@ if ((live_bootstrap)); then
 fi
 if ((build_preseed_1)); then
   build_preseed_1_tar
+  exit 0
+fi
+if ((build_preseed_2)); then
+  build_preseed_2_tar
   exit 0
 fi
 if ((live_bootstrap)) && ((preseed_level >= 1)); then

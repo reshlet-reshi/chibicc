@@ -32,6 +32,7 @@ STAGE0_LIVE_BOOTSTRAP=0
 STAGE0_REPL=0
 STAGE0_SUCCESS_MARKER=STAGE0_QEMU_SANITY_OK
 STAGE0_CAPTURE_PRESEED_1=0
+STAGE0_CAPTURE_PRESEED_2=0
 
 if [ -r /etc/stage0-qemu.conf ]; then
   # shellcheck disable=SC1091
@@ -105,6 +106,45 @@ emit_preseed_1() {
   echo "STAGE0_PRESEED_1_TAR_END"
 }
 
+emit_preseed_2() {
+  paths=/tmp/preseed-2.paths
+  sorted=/tmp/preseed-2.sorted
+
+  if [ ! -x /usr/bin/mes-m2 ]; then
+    echo "stage0-qemu: missing /usr/bin/mes-m2" >&2
+    return 1
+  fi
+  if [ ! -f /usr/bin/mescc.scm ]; then
+    echo "stage0-qemu: missing /usr/bin/mescc.scm" >&2
+    return 1
+  fi
+  if [ ! -d /usr/lib/x86_64-mes ]; then
+    echo "stage0-qemu: missing /usr/lib/x86_64-mes" >&2
+    return 1
+  fi
+  if [ ! -d /usr/lib/linux/x86_64-mes ]; then
+    echo "stage0-qemu: missing /usr/lib/linux/x86_64-mes" >&2
+    return 1
+  fi
+  if [ ! -d /usr/include/mes ]; then
+    echo "stage0-qemu: missing /usr/include/mes" >&2
+    return 1
+  fi
+
+  cd / || return 1
+  {
+    echo usr/bin/mes-m2
+    echo usr/bin/mescc.scm
+    "$BB" find usr/lib/x86_64-mes usr/lib/linux/x86_64-mes \
+      usr/include/mes -type f
+  } > "$paths" || return 1
+  "$BB" sort "$paths" > "$sorted" || return 1
+
+  echo "STAGE0_PRESEED_2_TAR_BEGIN"
+  "$BB" tar -cf - -T "$sorted" | "$BB" base64 || return 1
+  echo "STAGE0_PRESEED_2_TAR_END"
+}
+
 status=0
 if [ "$STAGE0_LIVE_BOOTSTRAP" = 1 ]; then
   run_live_bootstrap || status=$?
@@ -114,6 +154,9 @@ fi
 
 if [ "$status" -eq 0 ] && [ "$STAGE0_CAPTURE_PRESEED_1" = 1 ]; then
   emit_preseed_1 || status=$?
+fi
+if [ "$status" -eq 0 ] && [ "$STAGE0_CAPTURE_PRESEED_2" = 1 ]; then
+  emit_preseed_2 || status=$?
 fi
 
 if [ "$status" -eq 0 ]; then
