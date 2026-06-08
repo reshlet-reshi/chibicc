@@ -59,7 +59,7 @@ fi
 
 if [ "$STAGE0_REPL" = 1 ]; then
   echo "stage0-qemu: entering BusyBox ash"
-  exec "$BB" ash
+  "$BB" ash
 fi
 
 "$BB" poweroff -f >/dev/null 2>&1 || "$BB" poweroff >/dev/null 2>&1 || true
