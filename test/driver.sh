@@ -185,7 +185,7 @@ check '-fno-common'
 echo foo > "$tmp"/out.h
 echo bar | $chibicc -include "$tmp"/out.h -E -o- -xc - | grep -q -z 'foo.*bar'
 check -include
-echo NULL | $chibicc -Iinclude -include stdio.h -E -o- -xc - | grep -q 0
+echo NULL | $chibicc -include stdio.h -E -o- -xc - | grep -q 0
 check -include
 
 # -x

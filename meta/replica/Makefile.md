@@ -96,7 +96,7 @@ TESTS=$(TEST_SRCS:.c=.exe)
 TEST_LINK_CC?=$(CC)
 
 test/shared/common.o: chibicc test/shared/common.c
-	./chibicc -Iinclude -Itest -c -o test/shared/common.o test/shared/common.c
+	./chibicc -Itest -c -o test/shared/common.o test/shared/common.c
 
 test-compiler: chibicc test/shared/common.o
 	for src in $(TEST_SRCS); do \
@@ -104,7 +104,7 @@ test-compiler: chibicc test/shared/common.o
 		stem=$${stem%.c}; \
 		obj=test/$$stem.o; \
 		exe=test/$$stem.exe; \
-		./chibicc -Iinclude -Itest -c -o $$obj $$src || exit 1; \
+		./chibicc -Itest -c -o $$obj $$src || exit 1; \
 		$(TEST_LINK_CC) -pthread -o $$exe $$obj test/shared/common.o \
 			|| exit 1; \
 	done
@@ -134,8 +134,10 @@ For each source, `$${src#test/}` removes the leading `test/`, and
 stem `arith`, the object path `test/arith.o`, and the executable path
 `test/arith.exe`.
 
-The compile step always uses the local stage compiler with the stage-local
-`include/` and `test/` directories. The link step combines the test object
+The compile step always uses the local stage compiler. `./chibicc` finds its
+bundled headers from the `include/` directory next to its own executable, while
+`-Itest` makes the test support headers available for angle includes such as
+the macro-expanded `include4.h` case. The link step combines the test object
 with `test/shared/common.o` and writes the executable next to the test source.
 Each command exits the loop immediately on failure.
 
@@ -266,12 +268,12 @@ STAGE2_CHIBICC=$(STAGE2)/chibicc
 
 $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
-		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
+		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC" \
 			CFLAGS= chibicc
 
 test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
-		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC -Iinclude" \
+		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC" \
 			"TEST_LINK_CC=$(CC)" CFLAGS= test-compiler
 ```
 
@@ -281,13 +283,14 @@ compiler and an extracted stage 2 source tree.
 
 Once both prerequisites exist, the recipe captures the absolute stage 1
 compiler path with shell `pwd`, enters `.make/stage2`, and sets `CC` to that
-compiler plus `-Iinclude`.
+compiler.
 
 That `CC` value is the local stage's compiler-build driver. It compiles stage
 2 compiler objects and links `.make/stage2/chibicc`. `CFLAGS=` keeps host-only
 warning flags from being passed to chibicc while it is compiling stage 2. The
-include path remains stage-local because the recursive call runs from inside
-`.make/stage2`.
+stage 1 compiler finds its bundled headers from the `include/` directory next
+to its own executable, so the recursive `CC` override does not need an explicit
+include path.
 
 `test-stage2` asks the stage 2 extracted Makefile to run `test-compiler`, so
 the tests and `test/shared/common.o` are compiled by `.make/stage2/chibicc`
