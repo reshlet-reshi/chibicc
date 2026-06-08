@@ -6,7 +6,7 @@ The test Makefile owns local executable-test builds for the compiler under
 test. The root Makefile delegates its public `test-compiler` targets here with
 `make -C test`, setting `CC=../chibicc` after ensuring that compiler exists.
 
-Inside this Makefile, `CC` is the compiler being tested. `TEST_LINK_CC` is
+Inside this Makefile, `CC` is the compiler being tested. `LINK_CC` is
 separate and names the host compiler driver used to link test executables.
 
 It builds `*.o`, `*.exe`, and `shared/common.o` under `test/`, runs the

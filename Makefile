@@ -47,14 +47,14 @@ type.o: type.c chibicc.h
 unicode.o: unicode.c chibicc.h
 	$(CC) $(CFLAGS) -c -o unicode.o unicode.c
 
-TEST_LINK_CC?=$(CC)
+LINK_CC?=$(CC)
 
 test-compiler: chibicc
-	$(MAKE) -C test "CC=../chibicc" "TEST_LINK_CC=$(TEST_LINK_CC)" \
+	$(MAKE) -C test "CC=../chibicc" "LINK_CC=$(LINK_CC)" \
 		test-compiler
 
 test-compiler-exes: chibicc
-	$(MAKE) -C test "CC=../chibicc" "TEST_LINK_CC=$(TEST_LINK_CC)" \
+	$(MAKE) -C test "CC=../chibicc" "LINK_CC=$(LINK_CC)" \
 		test-compiler-exes
 
 test-compiler-driver: chibicc
@@ -128,7 +128,7 @@ $(STAGE2_CHIBICC): $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 test-stage2: $(STAGE1_CHIBICC) $(STAGE2)/.src-ready
 	STAGE1_CHIBICC=$$(pwd)/$(STAGE1_CHIBICC); \
 		$(MAKE) -C $(STAGE2) "CC=$$STAGE1_CHIBICC" \
-			"TEST_LINK_CC=$(CC)" CFLAGS= test-compiler
+			"LINK_CC=$(CC)" CFLAGS= test-compiler
 
 $(STAGE1)/.src-ready $(STAGE2)/.src-ready: $(SRC_DIST)
 	@case '$(@D)' in .make/*) ;; \
