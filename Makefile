@@ -96,7 +96,9 @@ TEST_LINK_CC?=$(CC)
 test/shared/common.o: chibicc test/shared/common.c
 	./chibicc -Itest -c -o test/shared/common.o test/shared/common.c
 
-test-compiler: chibicc test/shared/common.o
+test-compiler: test-compiler-exes test-compiler-driver
+
+test-compiler-exes: chibicc test/shared/common.o
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
 		stem=$${stem%.c}; \
@@ -107,6 +109,8 @@ test-compiler: chibicc test/shared/common.o
 			|| exit 1; \
 	done
 	for i in $(TESTS); do echo $$i; ./$$i || exit 1; echo; done
+
+test-compiler-driver: chibicc test/driver.sh
 	test/driver.sh ./chibicc
 
 SRC_DIST?=.make/chibicc.tar.gz
@@ -200,4 +204,5 @@ clean:
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
 .PHONY: all clean default src-dist test test-compiler
+.PHONY: test-compiler-driver test-compiler-exes
 .PHONY: test-all test-stage2

@@ -98,7 +98,9 @@ TEST_LINK_CC?=$(CC)
 test/shared/common.o: chibicc test/shared/common.c
 	./chibicc -Itest -c -o test/shared/common.o test/shared/common.c
 
-test-compiler: chibicc test/shared/common.o
+test-compiler: test-compiler-exes test-compiler-driver
+
+test-compiler-exes: chibicc test/shared/common.o
 	for src in $(TEST_SRCS); do \
 		stem=$${src#test/}; \
 		stem=$${stem%.c}; \
@@ -109,6 +111,8 @@ test-compiler: chibicc test/shared/common.o
 			|| exit 1; \
 	done
 	for i in $(TESTS); do echo $$i; ./$$i || exit 1; echo; done
+
+test-compiler-driver: chibicc test/driver.sh
 	test/driver.sh ./chibicc
 ```
 
@@ -125,9 +129,13 @@ from `test/shared/common.c` with the local `./chibicc`, avoiding a repeated
 helper compile for every test executable while still testing the compiler under
 test.
 
-`test-compiler` depends on `chibicc` and `test/shared/common.o`, so the local
-compiler file and shared helper object are rebuilt before test objects are
-compiled. The recipe loops over `$(TEST_SRCS)`.
+`test-compiler` is the stable public target for local compiler tests. It
+aggregates `test-compiler-exes` and `test-compiler-driver`, making each half
+independently invocable.
+
+`test-compiler-exes` depends on `chibicc` and `test/shared/common.o`, so the
+local compiler file and shared helper object are rebuilt before test objects
+are compiled. The recipe loops over `$(TEST_SRCS)`.
 
 For each source, `$${src#test/}` removes the leading `test/`, and
 `$${stem%.c}` removes the `.c` suffix. `test/arith.c` therefore becomes the
@@ -141,9 +149,10 @@ the macro-expanded `include4.h` case. The link step combines the test object
 with `test/shared/common.o` and writes the executable next to the test source.
 Each command exits the loop immediately on failure.
 
-After the loop, the target runs each executable in `$(TESTS)`, printing the
-path before running it, and then runs `test/driver.sh` against the local
-`./chibicc`.
+After the loop, `test-compiler-exes` runs each executable in `$(TESTS)`,
+printing the path before running it. `test-compiler-driver` depends only on
+the local compiler and `test/driver.sh`, so it can run the driver checks
+without first running the executable test loop.
 
 The link step uses `$(TEST_LINK_CC)` without `$(CFLAGS)`. Stage 2 overrides
 `TEST_LINK_CC` to the host compiler because chibicc does not accept every
@@ -334,6 +343,7 @@ clean:
 	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
 .PHONY: all clean default src-dist test test-compiler
+.PHONY: test-compiler-driver test-compiler-exes
 .PHONY: test-all test-stage2
 ```
 
