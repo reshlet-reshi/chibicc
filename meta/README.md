@@ -5,6 +5,8 @@
 documentation notes; individual replica files are intentionally not listed
 here. Git submodules under `meta/` are listed as directory entries.
 
+- `live-bootstrap/`
+  - Git submodule containing the pinned live-bootstrap experiment.
 - `pdpmake/`
   - Git submodule containing pdpmake for Makefile compatibility checks.
 - `replica/`
