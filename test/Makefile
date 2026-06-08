@@ -69,169 +69,251 @@ test-compiler: test-compiler-exes test-compiler-driver
 test-compiler-exes: $(TESTS)
 	for i in $(TESTS); do echo $$i; ./$$i || exit 1; echo; done
 
-alignof.exe: $(CC) alignof.c shared/common.o $(TEST_DEPS)
+alignof.o: $(CC) alignof.c $(TEST_DEPS)
 	$(CC) -I. -c -o alignof.o ./alignof.c
+
+alignof.exe: alignof.o shared/common.o
 	$(LINK_CC) -pthread -o alignof.exe alignof.o shared/common.o
 
-alloca.exe: $(CC) alloca.c shared/common.o $(TEST_DEPS)
+alloca.o: $(CC) alloca.c $(TEST_DEPS)
 	$(CC) -I. -c -o alloca.o ./alloca.c
+
+alloca.exe: alloca.o shared/common.o
 	$(LINK_CC) -pthread -o alloca.exe alloca.o shared/common.o
 
-arith.exe: $(CC) arith.c shared/common.o $(TEST_DEPS)
+arith.o: $(CC) arith.c $(TEST_DEPS)
 	$(CC) -I. -c -o arith.o ./arith.c
+
+arith.exe: arith.o shared/common.o
 	$(LINK_CC) -pthread -o arith.exe arith.o shared/common.o
 
-asm.exe: $(CC) asm.c shared/common.o $(TEST_DEPS)
+asm.o: $(CC) asm.c $(TEST_DEPS)
 	$(CC) -I. -c -o asm.o ./asm.c
+
+asm.exe: asm.o shared/common.o
 	$(LINK_CC) -pthread -o asm.exe asm.o shared/common.o
 
-atomic.exe: $(CC) atomic.c shared/common.o $(TEST_DEPS)
+atomic.o: $(CC) atomic.c $(TEST_DEPS)
 	$(CC) -I. -c -o atomic.o ./atomic.c
+
+atomic.exe: atomic.o shared/common.o
 	$(LINK_CC) -pthread -o atomic.exe atomic.o shared/common.o
 
-attribute.exe: $(CC) attribute.c shared/common.o $(TEST_DEPS)
+attribute.o: $(CC) attribute.c $(TEST_DEPS)
 	$(CC) -I. -c -o attribute.o ./attribute.c
+
+attribute.exe: attribute.o shared/common.o
 	$(LINK_CC) -pthread -o attribute.exe attribute.o shared/common.o
 
-bitfield.exe: $(CC) bitfield.c shared/common.o $(TEST_DEPS)
+bitfield.o: $(CC) bitfield.c $(TEST_DEPS)
 	$(CC) -I. -c -o bitfield.o ./bitfield.c
+
+bitfield.exe: bitfield.o shared/common.o
 	$(LINK_CC) -pthread -o bitfield.exe bitfield.o shared/common.o
 
-builtin.exe: $(CC) builtin.c shared/common.o $(TEST_DEPS)
+builtin.o: $(CC) builtin.c $(TEST_DEPS)
 	$(CC) -I. -c -o builtin.o ./builtin.c
+
+builtin.exe: builtin.o shared/common.o
 	$(LINK_CC) -pthread -o builtin.exe builtin.o shared/common.o
 
-cast.exe: $(CC) cast.c shared/common.o $(TEST_DEPS)
+cast.o: $(CC) cast.c $(TEST_DEPS)
 	$(CC) -I. -c -o cast.o ./cast.c
+
+cast.exe: cast.o shared/common.o
 	$(LINK_CC) -pthread -o cast.exe cast.o shared/common.o
 
-commonsym.exe: $(CC) commonsym.c shared/common.o $(TEST_DEPS)
+commonsym.o: $(CC) commonsym.c $(TEST_DEPS)
 	$(CC) -I. -c -o commonsym.o ./commonsym.c
+
+commonsym.exe: commonsym.o shared/common.o
 	$(LINK_CC) -pthread -o commonsym.exe commonsym.o shared/common.o
 
-compat.exe: $(CC) compat.c shared/common.o $(TEST_DEPS)
+compat.o: $(CC) compat.c $(TEST_DEPS)
 	$(CC) -I. -c -o compat.o ./compat.c
+
+compat.exe: compat.o shared/common.o
 	$(LINK_CC) -pthread -o compat.exe compat.o shared/common.o
 
-complit.exe: $(CC) complit.c shared/common.o $(TEST_DEPS)
+complit.o: $(CC) complit.c $(TEST_DEPS)
 	$(CC) -I. -c -o complit.o ./complit.c
+
+complit.exe: complit.o shared/common.o
 	$(LINK_CC) -pthread -o complit.exe complit.o shared/common.o
 
-const.exe: $(CC) const.c shared/common.o $(TEST_DEPS)
+const.o: $(CC) const.c $(TEST_DEPS)
 	$(CC) -I. -c -o const.o ./const.c
+
+const.exe: const.o shared/common.o
 	$(LINK_CC) -pthread -o const.exe const.o shared/common.o
 
-constexpr.exe: $(CC) constexpr.c shared/common.o $(TEST_DEPS)
+constexpr.o: $(CC) constexpr.c $(TEST_DEPS)
 	$(CC) -I. -c -o constexpr.o ./constexpr.c
+
+constexpr.exe: constexpr.o shared/common.o
 	$(LINK_CC) -pthread -o constexpr.exe constexpr.o shared/common.o
 
-control.exe: $(CC) control.c shared/common.o $(TEST_DEPS)
+control.o: $(CC) control.c $(TEST_DEPS)
 	$(CC) -I. -c -o control.o ./control.c
+
+control.exe: control.o shared/common.o
 	$(LINK_CC) -pthread -o control.exe control.o shared/common.o
 
-decl.exe: $(CC) decl.c shared/common.o $(TEST_DEPS)
+decl.o: $(CC) decl.c $(TEST_DEPS)
 	$(CC) -I. -c -o decl.o ./decl.c
+
+decl.exe: decl.o shared/common.o
 	$(LINK_CC) -pthread -o decl.exe decl.o shared/common.o
 
-enum.exe: $(CC) enum.c shared/common.o $(TEST_DEPS)
+enum.o: $(CC) enum.c $(TEST_DEPS)
 	$(CC) -I. -c -o enum.o ./enum.c
+
+enum.exe: enum.o shared/common.o
 	$(LINK_CC) -pthread -o enum.exe enum.o shared/common.o
 
-extern.exe: $(CC) extern.c shared/common.o $(TEST_DEPS)
+extern.o: $(CC) extern.c $(TEST_DEPS)
 	$(CC) -I. -c -o extern.o ./extern.c
+
+extern.exe: extern.o shared/common.o
 	$(LINK_CC) -pthread -o extern.exe extern.o shared/common.o
 
-float.exe: $(CC) float.c shared/common.o $(TEST_DEPS)
+float.o: $(CC) float.c $(TEST_DEPS)
 	$(CC) -I. -c -o float.o ./float.c
+
+float.exe: float.o shared/common.o
 	$(LINK_CC) -pthread -o float.exe float.o shared/common.o
 
-function.exe: $(CC) function.c shared/common.o $(TEST_DEPS)
+function.o: $(CC) function.c $(TEST_DEPS)
 	$(CC) -I. -c -o function.o ./function.c
+
+function.exe: function.o shared/common.o
 	$(LINK_CC) -pthread -o function.exe function.o shared/common.o
 
-generic.exe: $(CC) generic.c shared/common.o $(TEST_DEPS)
+generic.o: $(CC) generic.c $(TEST_DEPS)
 	$(CC) -I. -c -o generic.o ./generic.c
+
+generic.exe: generic.o shared/common.o
 	$(LINK_CC) -pthread -o generic.exe generic.o shared/common.o
 
-initializer.exe: $(CC) initializer.c shared/common.o $(TEST_DEPS)
+initializer.o: $(CC) initializer.c $(TEST_DEPS)
 	$(CC) -I. -c -o initializer.o ./initializer.c
+
+initializer.exe: initializer.o shared/common.o
 	$(LINK_CC) -pthread -o initializer.exe initializer.o shared/common.o
 
-line.exe: $(CC) line.c shared/common.o $(TEST_DEPS)
+line.o: $(CC) line.c $(TEST_DEPS)
 	$(CC) -I. -c -o line.o ./line.c
+
+line.exe: line.o shared/common.o
 	$(LINK_CC) -pthread -o line.exe line.o shared/common.o
 
-literal.exe: $(CC) literal.c shared/common.o $(TEST_DEPS)
+literal.o: $(CC) literal.c $(TEST_DEPS)
 	$(CC) -I. -c -o literal.o ./literal.c
+
+literal.exe: literal.o shared/common.o
 	$(LINK_CC) -pthread -o literal.exe literal.o shared/common.o
 
-macro.exe: $(CC) macro.c shared/common.o $(TEST_DEPS)
+macro.o: $(CC) macro.c $(TEST_DEPS)
 	$(CC) -I. -c -o macro.o ./macro.c
+
+macro.exe: macro.o shared/common.o
 	$(LINK_CC) -pthread -o macro.exe macro.o shared/common.o
 
-offsetof.exe: $(CC) offsetof.c shared/common.o $(TEST_DEPS)
+offsetof.o: $(CC) offsetof.c $(TEST_DEPS)
 	$(CC) -I. -c -o offsetof.o ./offsetof.c
+
+offsetof.exe: offsetof.o shared/common.o
 	$(LINK_CC) -pthread -o offsetof.exe offsetof.o shared/common.o
 
-pointer.exe: $(CC) pointer.c shared/common.o $(TEST_DEPS)
+pointer.o: $(CC) pointer.c $(TEST_DEPS)
 	$(CC) -I. -c -o pointer.o ./pointer.c
+
+pointer.exe: pointer.o shared/common.o
 	$(LINK_CC) -pthread -o pointer.exe pointer.o shared/common.o
 
-pragma-once.exe: $(CC) pragma-once.c shared/common.o $(TEST_DEPS)
+pragma-once.o: $(CC) pragma-once.c $(TEST_DEPS)
 	$(CC) -I. -c -o pragma-once.o ./pragma-once.c
+
+pragma-once.exe: pragma-once.o shared/common.o
 	$(LINK_CC) -pthread -o pragma-once.exe pragma-once.o \
 		shared/common.o
 
-sizeof.exe: $(CC) sizeof.c shared/common.o $(TEST_DEPS)
+sizeof.o: $(CC) sizeof.c $(TEST_DEPS)
 	$(CC) -I. -c -o sizeof.o ./sizeof.c
+
+sizeof.exe: sizeof.o shared/common.o
 	$(LINK_CC) -pthread -o sizeof.exe sizeof.o shared/common.o
 
-stdhdr.exe: $(CC) stdhdr.c shared/common.o $(TEST_DEPS)
+stdhdr.o: $(CC) stdhdr.c $(TEST_DEPS)
 	$(CC) -I. -c -o stdhdr.o ./stdhdr.c
+
+stdhdr.exe: stdhdr.o shared/common.o
 	$(LINK_CC) -pthread -o stdhdr.exe stdhdr.o shared/common.o
 
-string.exe: $(CC) string.c shared/common.o $(TEST_DEPS)
+string.o: $(CC) string.c $(TEST_DEPS)
 	$(CC) -I. -c -o string.o ./string.c
+
+string.exe: string.o shared/common.o
 	$(LINK_CC) -pthread -o string.exe string.o shared/common.o
 
-struct.exe: $(CC) struct.c shared/common.o $(TEST_DEPS)
+struct.o: $(CC) struct.c $(TEST_DEPS)
 	$(CC) -I. -c -o struct.o ./struct.c
+
+struct.exe: struct.o shared/common.o
 	$(LINK_CC) -pthread -o struct.exe struct.o shared/common.o
 
-tls.exe: $(CC) tls.c shared/common.o $(TEST_DEPS)
+tls.o: $(CC) tls.c $(TEST_DEPS)
 	$(CC) -I. -c -o tls.o ./tls.c
+
+tls.exe: tls.o shared/common.o
 	$(LINK_CC) -pthread -o tls.exe tls.o shared/common.o
 
-typedef.exe: $(CC) typedef.c shared/common.o $(TEST_DEPS)
+typedef.o: $(CC) typedef.c $(TEST_DEPS)
 	$(CC) -I. -c -o typedef.o ./typedef.c
+
+typedef.exe: typedef.o shared/common.o
 	$(LINK_CC) -pthread -o typedef.exe typedef.o shared/common.o
 
-typeof.exe: $(CC) typeof.c shared/common.o $(TEST_DEPS)
+typeof.o: $(CC) typeof.c $(TEST_DEPS)
 	$(CC) -I. -c -o typeof.o ./typeof.c
+
+typeof.exe: typeof.o shared/common.o
 	$(LINK_CC) -pthread -o typeof.exe typeof.o shared/common.o
 
-unicode.exe: $(CC) unicode.c shared/common.o $(TEST_DEPS)
+unicode.o: $(CC) unicode.c $(TEST_DEPS)
 	$(CC) -I. -c -o unicode.o ./unicode.c
+
+unicode.exe: unicode.o shared/common.o
 	$(LINK_CC) -pthread -o unicode.exe unicode.o shared/common.o
 
-union.exe: $(CC) union.c shared/common.o $(TEST_DEPS)
+union.o: $(CC) union.c $(TEST_DEPS)
 	$(CC) -I. -c -o union.o ./union.c
+
+union.exe: union.o shared/common.o
 	$(LINK_CC) -pthread -o union.exe union.o shared/common.o
 
-usualconv.exe: $(CC) usualconv.c shared/common.o $(TEST_DEPS)
+usualconv.o: $(CC) usualconv.c $(TEST_DEPS)
 	$(CC) -I. -c -o usualconv.o ./usualconv.c
+
+usualconv.exe: usualconv.o shared/common.o
 	$(LINK_CC) -pthread -o usualconv.exe usualconv.o shared/common.o
 
-varargs.exe: $(CC) varargs.c shared/common.o $(TEST_DEPS)
+varargs.o: $(CC) varargs.c $(TEST_DEPS)
 	$(CC) -I. -c -o varargs.o ./varargs.c
+
+varargs.exe: varargs.o shared/common.o
 	$(LINK_CC) -pthread -o varargs.exe varargs.o shared/common.o
 
-variable.exe: $(CC) variable.c shared/common.o $(TEST_DEPS)
+variable.o: $(CC) variable.c $(TEST_DEPS)
 	$(CC) -I. -c -o variable.o ./variable.c
+
+variable.exe: variable.o shared/common.o
 	$(LINK_CC) -pthread -o variable.exe variable.o shared/common.o
 
-vla.exe: $(CC) vla.c shared/common.o $(TEST_DEPS)
+vla.o: $(CC) vla.c $(TEST_DEPS)
 	$(CC) -I. -c -o vla.o ./vla.c
+
+vla.exe: vla.o shared/common.o
 	$(LINK_CC) -pthread -o vla.exe vla.o shared/common.o
 
 test-compiler-driver: $(CC) driver.sh
