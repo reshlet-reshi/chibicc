@@ -50,13 +50,15 @@ unicode.o: unicode.c chibicc.h
 TEST_LINK_CC?=$(CC)
 
 test-compiler: chibicc
-	$(MAKE) -C test "TEST_LINK_CC=$(TEST_LINK_CC)" test-compiler
+	$(MAKE) -C test "CC=../chibicc" "TEST_LINK_CC=$(TEST_LINK_CC)" \
+		test-compiler
 
 test-compiler-exes: chibicc
-	$(MAKE) -C test "TEST_LINK_CC=$(TEST_LINK_CC)" test-compiler-exes
+	$(MAKE) -C test "CC=../chibicc" "TEST_LINK_CC=$(TEST_LINK_CC)" \
+		test-compiler-exes
 
 test-compiler-driver: chibicc
-	$(MAKE) -C test test-compiler-driver
+	$(MAKE) -C test "CC=../chibicc" test-compiler-driver
 
 SRC_DIST?=.make/chibicc.tar
 ROOT_SRC_DIST?=.make/chibicc-src.tar

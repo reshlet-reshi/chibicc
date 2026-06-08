@@ -12,8 +12,9 @@ It currently covers these build roles:
 - `default` builds the local `chibicc` executable.
 - `all` aliases the full `test-all` gate.
 - Local compiler rules build root `*.o` objects and link `./chibicc`.
-- Public local test targets delegate to `test/Makefile`, which builds
-  `test/*.o`, `test/*.exe`, and `test/shared/common.o`.
+- Public local test targets delegate to `test/Makefile` with `CC` set to the
+  local `../chibicc`; the test Makefile builds `test/*.o`, `test/*.exe`, and
+  `test/shared/common.o`.
 - `src-dist` creates an uncompressed combined source archive at
   `.make/chibicc.tar` by default, omitting metadata-only files.
 - Source distribution is split into root and test component archives before
