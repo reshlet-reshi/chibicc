@@ -28,6 +28,7 @@ fi
 
 exec </dev/console >/dev/console 2>&1 || true
 
+STAGE0_LIVE_BOOTSTRAP=0
 STAGE0_REPL=0
 STAGE0_SUCCESS_MARKER=STAGE0_QEMU_SANITY_OK
 
@@ -58,8 +59,38 @@ run_sanity() {
   "$seed"
 }
 
+run_live_bootstrap() {
+  sha256sum=/AMD64/bin/sha256sum
+  seed=/bootstrap-seeds/POSIX/AMD64/kaem-optional-seed
+
+  if [ -x "$sha256sum" ]; then
+    cd / || return 1
+    if "$sha256sum" -c amd64.answers; then
+      echo "stage0-qemu: AMD64 bootstrap answers already verify"
+      ARCH=amd64
+      ARCH_DIR=AMD64
+      export ARCH ARCH_DIR
+      AMD64/bin/kaem --verbose --strict --file after.kaem
+      return
+    fi
+    echo "stage0-qemu: preseed check failed; running seed bootstrap" >&2
+  fi
+
+  if [ ! -x "$seed" ]; then
+    echo "stage0-qemu: missing executable AMD64 seed: $seed" >&2
+    return 1
+  fi
+
+  cd / || return 1
+  "$seed"
+}
+
 status=0
-run_sanity || status=$?
+if [ "$STAGE0_LIVE_BOOTSTRAP" = 1 ]; then
+  run_live_bootstrap || status=$?
+else
+  run_sanity || status=$?
+fi
 
 if [ "$status" -eq 0 ]; then
   echo "$STAGE0_SUCCESS_MARKER"

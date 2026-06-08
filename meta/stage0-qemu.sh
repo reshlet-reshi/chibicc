@@ -5,7 +5,9 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(git -C "$script_dir" rev-parse --show-toplevel)
 
 stage0_expected_head=45d90f5955b6907dc6cdea9ebafce558359edcd3
+live_bootstrap_expected_head=9a268c4c39cae952b268bc86da342be2175f03d4
 stage0_src=$repo_root/meta/stage0-posix
+live_bootstrap_src=$repo_root/meta/live-bootstrap
 stage0_init=$repo_root/meta/stage0-init.sh
 stage0_seed=$stage0_src/bootstrap-seeds/POSIX/AMD64/kaem-optional-seed
 
@@ -32,24 +34,35 @@ qemu_log=$cache/qemu.log
 preseed_tar=$cache/preseed.tar
 preseed_stamp=$cache/preseed.stage0-head
 preseed_src=$cache/preseed-src
+live_bootstrap_manifest=$cache/live-bootstrap.manifest
+live_bootstrap_sources=$cache/live-bootstrap.sources
+live_bootstrap_distfiles=$cache/live-bootstrap-distfiles
 success_marker=STAGE0_QEMU_SANITY_OK
+live_bootstrap=0
 preseed=1
 repl=1
 
 usage() {
   cat <<EOF
-usage: meta/stage0-qemu.sh [--no-preseed] [--no-repl]
+usage: meta/stage0-qemu.sh [--live-bootstrap] [--no-preseed] [--no-repl]
 
 Boot stage0-posix in QEMU TCG with a pinned Linux kernel and BusyBox initramfs.
 By default the host builds or reuses an AMD64 preseed tar, overlays it into the
 guest before boot, and drops into BusyBox ash after setup. With --no-preseed,
 the guest runs the AMD64 sanity seed. With --no-repl, the guest powers off
-after setup.
+after setup. With --live-bootstrap, the guest uses a chroot-style
+live-bootstrap rootfs truncated after the first gcc-4.0.4 build. Unless
+overridden, live-bootstrap mode uses 4096M of guest RAM and a 7200-second
+headless timeout.
 EOF
 }
 
 while (($#)); do
   case $1 in
+    --live-bootstrap)
+      live_bootstrap=1
+      success_marker=STAGE0_LIVE_BOOTSTRAP_OK
+      ;;
     --no-preseed)
       preseed=0
       ;;
@@ -68,6 +81,13 @@ while (($#)); do
   esac
   shift
 done
+
+if ((live_bootstrap)) && [[ -z ${STAGE0_QEMU_MEMORY+x} ]]; then
+  qemu_memory=4096M
+fi
+if ((live_bootstrap)) && [[ -z ${STAGE0_QEMU_TIMEOUT+x} ]]; then
+  timeout_seconds=7200
+fi
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -90,6 +110,10 @@ require_commands() {
 
 require_preseed_commands() {
   require_command make
+}
+
+require_live_bootstrap_commands() {
+  require_command curl
 }
 
 sha256_matches() {
@@ -144,14 +168,41 @@ prepare_stage0_submodules() {
   fi
 }
 
-copy_stage0_tree_to() {
-  local destination=$1
+prepare_live_bootstrap_submodule() {
+  local actual_head
+
+  if [[ -f $live_bootstrap_src/rootfs.py ]]; then
+    actual_head=$(git -C "$live_bootstrap_src" rev-parse HEAD)
+    if [[ $actual_head == "$live_bootstrap_expected_head" ]]; then
+      return
+    fi
+  fi
+
+  git -C "$repo_root" submodule update --init meta/live-bootstrap
+
+  actual_head=$(git -C "$live_bootstrap_src" rev-parse HEAD)
+  if [[ $actual_head != "$live_bootstrap_expected_head" ]]; then
+    echo "meta/live-bootstrap is at $actual_head" >&2
+    echo "expected $live_bootstrap_expected_head" >&2
+    exit 1
+  fi
+}
+
+copy_tree_to() {
+  local destination=$2
+  local source=$1
 
   mkdir -p "$destination"
   (
-    cd "$stage0_src"
+    cd "$source"
     tar --exclude=.git --exclude='*/.git' -cf - .
   ) | tar -xf - -C "$destination"
+}
+
+copy_stage0_tree_to() {
+  local destination=$1
+
+  copy_tree_to "$stage0_src" "$destination"
 }
 
 preseed_is_current() {
@@ -197,13 +248,182 @@ copy_stage0_tree() {
 
 apply_preseed() {
   if ((preseed)); then
-    tar -xf "$preseed_tar" -C "$rootfs/stage0-posix"
+    if ((live_bootstrap)); then
+      tar -xf "$preseed_tar" -C "$rootfs"
+    else
+      tar -xf "$preseed_tar" -C "$rootfs/stage0-posix"
+    fi
   fi
+}
+
+generate_live_bootstrap_manifest() {
+  local found=0
+  local temporary=$live_bootstrap_manifest.tmp
+
+  mkdir -p "$(dirname "$live_bootstrap_manifest")"
+  rm -f "$temporary"
+
+  while IFS= read -r line; do
+    printf '%s\n' "$line" >> "$temporary"
+    if [[ $line =~ ^build:[[:space:]]+gcc-4\.0\.4([[:space:]]|$) ]]; then
+      found=1
+      break
+    fi
+  done < "$live_bootstrap_src/steps/manifest"
+
+  if ((found == 0)); then
+    echo "stage0-qemu: missing first gcc-4.0.4 manifest entry" >&2
+    rm -f "$temporary"
+    exit 1
+  fi
+
+  mv "$temporary" "$live_bootstrap_manifest"
+}
+
+generate_live_bootstrap_sources() {
+  local file
+  local line
+  local source_file
+  local step
+  local temporary=$live_bootstrap_sources.tmp
+  local url
+  local sha
+  local -a fields
+  local -A seen=()
+
+  mkdir -p "$(dirname "$live_bootstrap_sources")"
+  rm -f "$temporary"
+
+  while IFS= read -r line; do
+    if [[ ! $line =~ ^build:[[:space:]]+([^[:space:]#]+) ]]; then
+      continue
+    fi
+
+    step=${BASH_REMATCH[1]}
+    source_file=$live_bootstrap_src/steps/$step/sources
+    if [[ ! -f $source_file ]]; then
+      continue
+    fi
+
+    while IFS= read -r line; do
+      [[ -n ${line//[[:space:]]/} ]] || continue
+      [[ ! $line =~ ^[[:space:]]*# ]] || continue
+
+      read -r -a fields <<< "$line"
+      if [[ ${fields[0]} == "g" || ${fields[0]} == "git" ]]; then
+        url=${fields[2]}
+        sha=${fields[3]}
+        file=${fields[4]:-$(basename "$url")}
+      else
+        url=${fields[1]}
+        sha=${fields[2]}
+        file=${fields[3]:-$(basename "$url")}
+      fi
+
+      if [[ -z ${seen["$file"]+set} ]]; then
+        seen["$file"]=1
+        printf '%s\t%s\t%s\n' "$sha" "$url" "$file" >> "$temporary"
+      fi
+    done < "$source_file"
+  done < "$live_bootstrap_manifest"
+
+  mv "$temporary" "$live_bootstrap_sources"
+}
+
+fetch_live_bootstrap_distfiles() {
+  local destination
+  local file
+  local sha
+  local temporary
+  local url
+
+  require_live_bootstrap_commands
+  mkdir -p "$live_bootstrap_distfiles"
+
+  while IFS=$'\t' read -r sha url file; do
+    destination=$live_bootstrap_distfiles/$file
+    if [[ -f $destination ]] && sha256_matches "$destination" "$sha"; then
+      continue
+    fi
+
+    if [[ $url == "_" ]]; then
+      echo "stage0-qemu: no direct URL for live-bootstrap distfile $file" >&2
+      exit 1
+    fi
+
+    echo "stage0-qemu: fetching live-bootstrap distfile: $file"
+    temporary=$destination.tmp
+    rm -f "$temporary"
+    curl -fsSL -o "$temporary" "$url"
+    if ! sha256_matches "$temporary" "$sha"; then
+      echo "sha256 mismatch for $url" >&2
+      rm -f "$temporary"
+      exit 1
+    fi
+    mv "$temporary" "$destination"
+  done < "$live_bootstrap_sources"
+}
+
+prepare_live_bootstrap_inputs() {
+  generate_live_bootstrap_manifest
+  generate_live_bootstrap_sources
+  fetch_live_bootstrap_distfiles
+}
+
+copy_live_bootstrap_seed() {
+  (
+    cd "$live_bootstrap_src/seed"
+    find . -maxdepth 1 -type f -print0 \
+      | tar --null -T - -cf -
+  ) | tar -xf - -C "$rootfs"
+}
+
+write_live_bootstrap_config() {
+  cat > "$rootfs/steps/bootstrap.cfg" <<EOF
+ARCH=amd64
+ARCH_DIR=AMD64
+FORCE_TIMESTAMPS=False
+CHROOT=True
+UPDATE_CHECKSUMS=False
+JOBS=1
+SWAP_SIZE=0
+FINAL_JOBS=1
+INTERNAL_CI=False
+INTERACTIVE=False
+QEMU=False
+BARE_METAL=False
+DISK=sda1
+KERNEL_BOOTSTRAP=False
+BUILD_KERNELS=False
+CONFIGURATOR=False
+MIRRORS_LEN=0
+EOF
+}
+
+copy_live_bootstrap_distfiles() {
+  local file
+  local sha
+  local url
+
+  mkdir -p "$rootfs/external/distfiles"
+  while IFS=$'\t' read -r sha url file; do
+    cp "$live_bootstrap_distfiles/$file" "$rootfs/external/distfiles/$file"
+  done < "$live_bootstrap_sources"
+}
+
+copy_live_bootstrap_rootfs() {
+  copy_stage0_tree_to "$rootfs"
+  copy_live_bootstrap_seed
+  copy_tree_to "$live_bootstrap_src/steps" "$rootfs/steps"
+  cp "$live_bootstrap_manifest" "$rootfs/steps/manifest"
+  write_live_bootstrap_config
+  copy_live_bootstrap_distfiles
 }
 
 write_guest_config() {
   mkdir -p "$rootfs/etc"
   {
+    printf 'STAGE0_LIVE_BOOTSTRAP=%s\n' "$live_bootstrap"
     printf 'STAGE0_REPL=%s\n' "$repl"
     printf 'STAGE0_SUCCESS_MARKER=%s\n' "$success_marker"
   } > "$rootfs/etc/stage0-qemu.conf"
@@ -217,8 +437,15 @@ build_initramfs() {
   install -m 0755 "$busybox" "$rootfs/bin/busybox"
   install -m 0755 "$stage0_init" "$rootfs/init"
   write_guest_config
-  copy_stage0_tree
+  if ((live_bootstrap)); then
+    copy_live_bootstrap_rootfs
+  else
+    copy_stage0_tree
+  fi
   apply_preseed
+  install -m 0755 "$busybox" "$rootfs/bin/busybox"
+  install -m 0755 "$stage0_init" "$rootfs/init"
+  write_guest_config
 
   mkdir -p "$(dirname "$initramfs")"
   (
@@ -272,6 +499,10 @@ run_qemu() {
 
 require_commands
 prepare_stage0_submodules
+if ((live_bootstrap)); then
+  prepare_live_bootstrap_submodule
+  prepare_live_bootstrap_inputs
+fi
 if ((preseed)); then
   build_preseed_tar
 fi
