@@ -68,6 +68,7 @@ def git_source_dist_paths() -> set[Path]:
             "-z",
             "--",
             ".",
+            ":!AGENTS.md",
             ":!meta",
             ":!.gitignore",
             ":!.gitmodules",

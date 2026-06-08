@@ -211,10 +211,10 @@ under `.make/`, including when `make src-dist` runs from an extracted tree.
 The source distribution no longer asks Git for a file list at build time.
 `DIST_ROOT_FILES`, `SRCS`, `DIST_INCLUDE_FILES`, and `TEST_FILES` are the
 explicit contract for files that enter the tarball. They contain tracked
-project files outside `meta/` and intentionally omit `.gitignore` and
-`.gitmodules`. Because these lists are ordinary Make data, the same archive
-rule works from the repository root and from an extracted source tree that has
-no `.git/` directory.
+project files outside `meta/` and intentionally omit `AGENTS.md`,
+`.gitignore`, and `.gitmodules`. Because these lists are ordinary Make data,
+the same archive rule works from the repository root and from an extracted
+source tree that has no `.git/` directory.
 
 `TEST_FILES` starts with `$(TEST_SRCS)` and then adds every current
 distributed non-program file under `test/`, including headers, shell scripts,
